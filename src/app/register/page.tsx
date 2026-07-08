@@ -5,12 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import PromptyLogo from '@/components/shared/PromptyLogo';
+import { registerUser } from '@/lib/actions/auth';
 
 export default function RegisterPage() {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const [form, setForm] = useState({
     username: '',
@@ -21,12 +24,42 @@ export default function RegisterPage() {
 
   const handleChange = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+    setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Navigate to OTP verification
-    router.push(`/verify-email?email=${encodeURIComponent(form.email)}`);
+    setError('');
+
+    if (form.password.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setError('รหัสผ่านไม่ตรงกัน');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await registerUser({
+        name: form.username,
+        email: form.email,
+        password: form.password,
+      });
+
+      if (!result.success) {
+        setError(result.error || 'เกิดข้อผิดพลาด กรุณาลองใหม่');
+        return;
+      }
+
+      router.push(`/verify-email?email=${encodeURIComponent(form.email)}`);
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const isFormValid =
@@ -34,7 +67,6 @@ export default function RegisterPage() {
     form.email &&
     form.password &&
     form.confirmPassword &&
-    form.password === form.confirmPassword &&
     acceptTerms;
 
   return (
@@ -135,13 +167,20 @@ export default function RegisterPage() {
             </label>
           </div>
 
+          {/* Error */}
+          {error && (
+            <p style={{ color: 'var(--error)', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>
+              {error}
+            </p>
+          )}
+
           {/* Submit */}
           <button
             type="submit"
             className="btn btn-primary btn-full"
-            disabled={!isFormValid}
+            disabled={!isFormValid || isLoading}
           >
-            สมัครสมาชิก
+            {isLoading ? 'กำลังสมัคร...' : 'สมัครสมาชิก'}
           </button>
         </form>
 

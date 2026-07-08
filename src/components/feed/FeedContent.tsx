@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Code2,
   ImageIcon,
@@ -183,6 +183,20 @@ function CodeSnippetPost() {
 /* ===== AI Prompt Post ===== */
 function AiPromptPost() {
   const promptText = `"Futuristic landscape with glowing neon trees, cosmic sky, highly detailed, 8k resolution, cinematic lighting, cyberpunk aesthetic, reflective water surfaces, deep purple and cyan hues."`;
+  
+  // สร้าง state เก็บตำแหน่งดาวเพื่อป้องกัน Hydration Error (ให้สุ่มหลังจากเรนเดอร์ฝั่งไคลเอนต์เท่านั้น)
+  const [stars, setStars] = useState<{ top: number; left: number; size: number; opacity: number }[]>([]);
+
+  useEffect(() => {
+    setStars(
+      [...Array(20)].map(() => ({
+        top: Math.random() * 40,
+        left: Math.random() * 100,
+        size: 1 + Math.random() * 2,
+        opacity: 0.3 + Math.random() * 0.5,
+      }))
+    );
+  }, []);
 
   return (
     <div className="post-card">
@@ -245,16 +259,16 @@ function AiPromptPost() {
             borderRadius: '2px', boxShadow: '0 0 8px #d946ef',
           }} />
           {/* Stars */}
-          {[...Array(20)].map((_, i) => (
+          {stars.map((star, i) => (
             <div key={i} style={{
               position: 'absolute',
-              top: `${Math.random() * 40}%`,
-              left: `${Math.random() * 100}%`,
-              width: `${1 + Math.random() * 2}px`,
-              height: `${1 + Math.random() * 2}px`,
+              top: `${star.top}%`,
+              left: `${star.left}%`,
+              width: `${star.size}px`,
+              height: `${star.size}px`,
               background: 'white',
               borderRadius: '50%',
-              opacity: 0.3 + Math.random() * 0.5,
+              opacity: star.opacity,
             }} />
           ))}
           {/* Water reflection */}

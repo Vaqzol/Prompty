@@ -1,8 +1,30 @@
-import Link from 'next/link';
-import { Search, Plus, Bell, Bookmark, User } from 'lucide-react';
-import PromptyLogo from '@/components/shared/PromptyLogo';
+'use client';
 
-export default function MainNavbar() {
+import { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { Search, Plus, Bell, Bookmark, User, Settings, LogOut } from 'lucide-react';
+import PromptyLogo from '@/components/shared/PromptyLogo';
+import { signOut } from 'next-auth/react';
+
+export default function MainNavbar({ user }: { user?: any }) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ปิด dropdown เมื่อคลิกที่อื่น
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/login' });
+  };
+
   return (
     <nav className="main-navbar">
       {/* Logo */}
@@ -32,8 +54,52 @@ export default function MainNavbar() {
           <Bookmark size={20} />
         </button>
 
-        <div className="navbar-avatar">
-          <User size={18} style={{ color: 'var(--text-muted)' }} />
+        {/* User Profile Dropdown */}
+        <div className="profile-dropdown-container" ref={dropdownRef}>
+          <div
+            className="navbar-avatar"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            style={{ cursor: 'pointer', overflow: 'hidden' }}
+          >
+            {user?.name ? (
+              <span style={{ fontWeight: '600', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                {user.name.charAt(0).toUpperCase()}
+              </span>
+            ) : (
+              <User size={18} style={{ color: 'var(--text-muted)' }} />
+            )}
+          </div>
+
+          {isDropdownOpen && (
+            <div className="profile-dropdown">
+              <div className="profile-dropdown-header">
+                <div className="profile-dropdown-avatar">
+                  {user?.name ? user.name.charAt(0).toUpperCase() : <User size={20} />}
+                </div>
+                <div className="profile-dropdown-info">
+                  <span className="profile-dropdown-name">{user?.name || 'ผู้ใช้งาน'}</span>
+                  <span className="profile-dropdown-handle">@{user?.email?.split('@')[0] || 'user'}</span>
+                </div>
+              </div>
+
+              <Link href="/profile" className="profile-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                <User size={18} />
+                โปรไฟล์ของฉัน
+              </Link>
+              
+              <Link href="/settings" className="profile-dropdown-item" onClick={() => setIsDropdownOpen(false)}>
+                <Settings size={18} />
+                การตั้งค่า
+              </Link>
+
+              <div className="profile-dropdown-divider"></div>
+
+              <button className="profile-dropdown-item logout" onClick={handleLogout}>
+                <LogOut size={18} />
+                ออกจากระบบ
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

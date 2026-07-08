@@ -4,7 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { signIn } from 'next-auth/react';
 import PromptyLogo from '@/components/shared/PromptyLogo';
+import { authenticate } from '@/lib/actions/auth';
 
 function GithubIcon() {
   return (
@@ -30,12 +32,41 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Set mock auth cookie (จะถูกแทนด้วย NextAuth ตอน backend พร้อม)
-    document.cookie = 'auth_token=mock_token; path=/; max-age=86400';
-    router.push('/');
+    setError('');
+    setIsLoading(true);
+
+    try {
+      // ตรวจสอบความถูกต้องของอีเมลและรหัสผ่านก่อนเพื่อดึงข้อความ Error ที่ถูกต้อง
+      const authCheck = await authenticate({ email, password });
+      if (authCheck.error) {
+        setError(authCheck.error);
+        setIsLoading(false);
+        return;
+      }
+
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
+        return;
+      }
+
+      router.push('/');
+      router.refresh();
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -91,16 +122,24 @@ export default function LoginPage() {
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-            <span className="form-link-right">ลืมรหัสผ่าน?</span>
+            <Link href="/forgot-password" className="form-link-right">ลืมรหัสผ่าน?</Link>
           </div>
+
+          {/* Error */}
+          {error && (
+            <p style={{ color: 'var(--error)', fontSize: '13px', textAlign: 'center', marginBottom: '12px' }}>
+              {error}
+            </p>
+          )}
 
           {/* Submit */}
           <button
             className="btn btn-primary btn-full"
             style={{ marginTop: '8px' }}
             onClick={handleLogin}
+            disabled={isLoading}
           >
-            เข้าสู่ระบบ
+            {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
 
           {/* Divider */}

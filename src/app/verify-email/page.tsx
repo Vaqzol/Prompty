@@ -3,14 +3,18 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PromptyLogo from '@/components/shared/PromptyLogo';
+import { verifyOtp, sendOtp } from '@/lib/actions/auth';
 
 function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get('email') || 'user@gmail.com';
+  const flow = searchParams.get('flow'); // 'reset' = forgot-password flow
 
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(59);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Countdown timer
@@ -30,7 +34,6 @@ function VerifyEmailContent() {
   const handleOtpChange = useCallback(
     (index: number, value: string) => {
       if (value.length > 1) {
-        // Handle paste
         const chars = value.slice(0, 6).split('');
         const newOtp = [...otp];
         chars.forEach((char, i) => {
@@ -46,7 +49,6 @@ function VerifyEmailContent() {
       newOtp[index] = value;
       setOtp(newOtp);
 
-      // Auto-advance to next input
       if (value && index < 5) {
         inputRefs.current[index + 1]?.focus();
       }
@@ -60,24 +62,43 @@ function VerifyEmailContent() {
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     const code = otp.join('');
-    if (code.length === 6) {
-      router.push('/register/success');
+    if (code.length !== 6) return;
+
+    setError('');
+    setIsLoading(true);
+
+    try {
+      const result = await verifyOtp(email, code);
+
+      if (!result.success) {
+        setError(result.error || 'รหัส OTP ไม่ถูกต้อง');
+        return;
+      }
+
+      if (flow === 'reset') {
+        router.push(`/reset-password?email=${encodeURIComponent(email)}`);
+      } else {
+        router.push('/register/success');
+      }
+    } catch {
+      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleResend = () => {
-    if (countdown <= 0) {
-      setCountdown(59);
-      // TODO: resend OTP API call
-    }
+  const handleResend = async () => {
+    if (countdown > 0) return;
+    setCountdown(59);
+    setError('');
+    const purpose = flow === 'reset' ? 'reset' : 'register';
+    await sendOtp(email, purpose);
   };
 
   const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, '0');
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   };
@@ -117,13 +138,20 @@ function VerifyEmailContent() {
           ))}
         </div>
 
+        {/* Error */}
+        {error && (
+          <p style={{ color: 'var(--error)', fontSize: '13px', textAlign: 'center', marginBottom: '12px' }}>
+            {error}
+          </p>
+        )}
+
         {/* Verify button */}
         <button
           className="btn btn-primary btn-full"
           onClick={handleVerify}
-          disabled={otp.join('').length !== 6}
+          disabled={otp.join('').length !== 6 || isLoading}
         >
-          ยืนยันรหัส
+          {isLoading ? 'กำลังตรวจสอบ...' : 'ยืนยันรหัส'}
         </button>
 
         {/* Resend */}
@@ -131,15 +159,11 @@ function VerifyEmailContent() {
           ยังไม่ได้รับรหัส?{' '}
           {countdown > 0 ? (
             <span>
-              <a
-                style={{ cursor: 'default', opacity: 0.5 }}
-              >
-                ส่งอีกครั้ง
-              </a>{' '}
+              <a style={{ cursor: 'default', opacity: 0.5 }}>ส่งอีกครั้ง</a>{' '}
               ({formatTime(countdown)})
             </span>
           ) : (
-            <a onClick={handleResend}>ส่งอีกครั้ง</a>
+            <a onClick={handleResend} style={{ cursor: 'pointer' }}>ส่งอีกครั้ง</a>
           )}
         </p>
       </div>
