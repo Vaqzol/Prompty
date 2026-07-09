@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import {
   Code2,
-  ImageIcon,
   ChevronDown,
   ArrowBigUp,
   ArrowBigDown,
@@ -13,58 +13,73 @@ import {
   Share2,
   Bookmark,
   Check,
+  Sparkles,
 } from 'lucide-react';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/github-dark.css';
+import PostModal from './PostModal';
+import { toggleVote } from '@/lib/actions/post';
 
-/* ===== Post Composer ===== */
-function PostComposer() {
-  return (
-    <div className="post-composer">
-      <div className="composer-row">
-        <div className="composer-avatar" />
-        <input
-          type="text"
-          className="composer-input"
-          placeholder="แบ่งปันCode หรือ Promptของคุณที่นี่"
-          readOnly
-        />
-        <button className="composer-post-btn">โพสต์</button>
-      </div>
-      <div className="composer-actions">
-        <button className="composer-action-btn">
-          <Code2 size={18} style={{ color: '#2563eb' }} />
-        </button>
-        <button className="composer-action-btn">
-          <ImageIcon size={18} style={{ color: '#65676b' }} />
-        </button>
-      </div>
-    </div>
-  );
+interface PostData {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  content: string | null;
+  language: string | null;
+  aiModel: string | null;
+  imageUrl: string | null;
+  tags: string[];
+  voteScore: number;
+  commentCount: number;
+  createdAt: Date | string;
+  author: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    handle: string | null;
+    image: string | null;
+  };
+  votes: { userId: string; type: string }[];
 }
 
-/* ===== Filter Tabs ===== */
-function FeedFilterTabs() {
-  const [active, setActive] = useState('all');
+function timeAgo(date: Date | string) {
+  const now = new Date();
+  const d = new Date(date);
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diff < 60) return 'เมื่อกี้';
+  if (diff < 3600) return `${Math.floor(diff / 60)} นาทีที่แล้ว`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ชม. ที่แล้ว`;
+  return `${Math.floor(diff / 86400)} วัน ที่แล้ว`;
+}
 
+
+/* ===== Filter Tabs ===== */
+function FeedFilterTabs({ active, onChange }: { active: string; onChange: (v: string) => void }) {
   return (
-    <div className="feed-filters">
-      {[
-        { key: 'all', label: 'ทั้งหมด' },
-        { key: 'code', label: 'Code' },
-        { key: 'prompt', label: 'Prompt' },
-      ].map((tab) => (
-        <button
-          key={tab.key}
-          className={`filter-pill ${active === tab.key ? 'active' : ''}`}
-          onClick={() => setActive(tab.key)}
-        >
-          {tab.label}
+    <div className="feed-filters-container">
+      <div className="feed-filters-left">
+        {[
+          { key: 'all', label: 'ทั้งหมด' },
+          { key: 'code', label: 'Code' },
+          { key: 'prompt', label: 'Prompt' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            className={`filter-pill ${active === tab.key ? 'active' : ''}`}
+            onClick={() => onChange(tab.key)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+      <div className="feed-filters-right">
+        <button className="filter-sort">
+          <span>🔥</span>
+          มาแรง
+          <ChevronDown size={14} />
         </button>
-      ))}
-      <button className="filter-sort">
-        <span>🔥</span>
-        มาแรง
-        <ChevronDown size={14} />
-      </button>
+      </div>
     </div>
   );
 }
@@ -78,9 +93,7 @@ function CopyBtn({ text }: { text: string }) {
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // fallback
-    }
+    } catch { /* fallback */ }
   };
 
   return (
@@ -95,237 +108,140 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
-/* ===== Code Snippet Post ===== */
-function CodeSnippetPost() {
-  const code = `export default function Navbar() {
-  return (
-    <nav className="bg-white shadow-sm">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              Logo
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-  )
-}`;
+/* ===== Post Card ===== */
+function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
+  const avatarColor = post.type === 'CODE' ? '#3b82f6' : '#ec4899';
+  const userVote = currentUserId
+    ? post.votes.find((v) => v.userId === currentUserId)?.type
+    : null;
 
   return (
     <div className="post-card">
       {/* Header */}
       <div className="post-header">
-        <div className="post-avatar" style={{ background: '#3b82f6' }}>
-          A
+        <div className="post-avatar" style={{ background: avatarColor }}>
+          {post.author.name?.charAt(0).toUpperCase() || 'U'}
         </div>
         <div className="post-author-info">
-          <div className="post-author-name">Alex Dev</div>
-          <div className="post-time">2ชม. ที่แล้ว</div>
+          <div className="post-author-name">{post.author.name || 'ผู้ใช้'}</div>
+          <div className="post-time" suppressHydrationWarning>{timeAgo(post.createdAt)}</div>
         </div>
-        <span className="post-type-badge badge-code">
-          <Code2 size={12} />
-          Code Snippet
+        <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`} style={{ marginLeft: 'auto' }}>
+          {post.type === 'CODE' ? (
+            <><Code2 size={12} /> Code Snippet</>
+          ) : (
+            <><Sparkles size={12} /> AI Prompt</>
+          )}
         </span>
       </div>
 
       {/* Content */}
-      <h3 className="post-title">Responsive React Navbar</h3>
-      <p className="post-description">
-        A simple tailwind navbar component.
-      </p>
-      <div className="post-tag">#React</div>
+      <Link href={`/post/${post.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <h3 className="post-title">{post.title}</h3>
+      </Link>
+      {post.description && <p className="post-description">{post.description}</p>}
+
+      {post.tags.length > 0 && (
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          {post.tags.map((tag) => (
+            <span key={tag} className="post-tag">#{tag}</span>
+          ))}
+        </div>
+      )}
 
       {/* Code block */}
-      <div className="post-code-block">
-        <div className="post-code-header">
-          <span className="post-code-lang">React</span>
-          <CopyBtn text={code} />
-        </div>
-        <div className="post-code-content">
-          <pre>{code}</pre>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="post-actions">
-        <div className="vote-group">
-          <button className="vote-btn">
-            <ArrowBigUp size={20} />
-          </button>
-          <span className="vote-count">342</span>
-          <button className="vote-btn">
-            <ArrowBigDown size={20} />
-          </button>
-        </div>
-        <button className="action-btn">
-          <MessageSquare size={16} /> 12
-        </button>
-        <button className="action-btn">
-          <Copy size={16} /> 45
-        </button>
-        <span className="action-spacer" />
-        <button className="action-btn">
-          <Flag size={16} />
-        </button>
-        <button className="action-btn">
-          <Share2 size={16} />
-        </button>
-        <button className="action-btn">
-          <Bookmark size={16} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ===== AI Prompt Post ===== */
-function AiPromptPost() {
-  const promptText = `"Futuristic landscape with glowing neon trees, cosmic sky, highly detailed, 8k resolution, cinematic lighting, cyberpunk aesthetic, reflective water surfaces, deep purple and cyan hues."`;
-  
-  // สร้าง state เก็บตำแหน่งดาวเพื่อป้องกัน Hydration Error (ให้สุ่มหลังจากเรนเดอร์ฝั่งไคลเอนต์เท่านั้น)
-  const [stars, setStars] = useState<{ top: number; left: number; size: number; opacity: number }[]>([]);
-
-  useEffect(() => {
-    setStars(
-      [...Array(20)].map(() => ({
-        top: Math.random() * 40,
-        left: Math.random() * 100,
-        size: 1 + Math.random() * 2,
-        opacity: 0.3 + Math.random() * 0.5,
-      }))
-    );
-  }, []);
-
-  return (
-    <div className="post-card">
-      {/* Header */}
-      <div className="post-header">
-        <div className="post-avatar" style={{ background: '#ec4899' }}>
-          S
-        </div>
-        <div className="post-author-info">
-          <div className="post-author-name">Sarah Art</div>
-          <div className="post-time">4ชม. ที่แล้ว</div>
-        </div>
-        <span className="post-type-badge badge-prompt">
-          ✨ AI Prompt
-        </span>
-      </div>
-
-      {/* Content */}
-      <h3 className="post-title">Cyberpunk Landscape</h3>
-      <p className="post-description">
-        Prompt used for my latest series.
-      </p>
-      <div className="post-tag">#Cyberpunk</div>
-
-      {/* Image preview */}
-      <div className="post-prompt-image">
-        <div
-          style={{
-            width: '100%',
-            height: '280px',
-            background: 'linear-gradient(135deg, #1a0533 0%, #0d1b2a 30%, #1b2838 50%, #0a192f 70%, #2d1b69 100%)',
-            borderRadius: 'var(--radius-md)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Decorative elements to simulate cyberpunk landscape */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%',
-            background: 'linear-gradient(0deg, rgba(6,182,212,0.2), transparent)',
-          }} />
-          <div style={{
-            position: 'absolute', top: '20%', left: '15%', width: '3px', height: '45%',
-            background: 'linear-gradient(180deg, #06b6d4, #8b5cf6)',
-            borderRadius: '2px', boxShadow: '0 0 12px #06b6d4',
-          }} />
-          <div style={{
-            position: 'absolute', top: '15%', left: '35%', width: '4px', height: '50%',
-            background: 'linear-gradient(180deg, #a855f7, #ec4899)',
-            borderRadius: '2px', boxShadow: '0 0 15px #a855f7',
-          }} />
-          <div style={{
-            position: 'absolute', top: '25%', right: '25%', width: '3px', height: '40%',
-            background: 'linear-gradient(180deg, #06b6d4, #22d3ee)',
-            borderRadius: '2px', boxShadow: '0 0 10px #06b6d4',
-          }} />
-          <div style={{
-            position: 'absolute', top: '18%', right: '40%', width: '2px', height: '35%',
-            background: 'linear-gradient(180deg, #d946ef, #8b5cf6)',
-            borderRadius: '2px', boxShadow: '0 0 8px #d946ef',
-          }} />
-          {/* Stars */}
-          {stars.map((star, i) => (
-            <div key={i} style={{
-              position: 'absolute',
-              top: `${star.top}%`,
-              left: `${star.left}%`,
-              width: `${star.size}px`,
-              height: `${star.size}px`,
-              background: 'white',
-              borderRadius: '50%',
-              opacity: star.opacity,
+      {post.type === 'CODE' && post.content && (
+        <div className="post-code-block">
+          <div className="post-code-header">
+            <span className="post-code-lang">{post.language || 'Code'}</span>
+            <CopyBtn text={post.content} />
+          </div>
+          <div className="post-code-content">
+            <pre dangerouslySetInnerHTML={{ 
+              __html: hljs.highlightAuto(
+                post.content.length > 400 ? post.content.slice(0, 400) + '...' : post.content
+              ).value 
             }} />
-          ))}
-          {/* Water reflection */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: '25%',
-            background: 'linear-gradient(0deg, rgba(6,182,212,0.15), transparent)',
-            backdropFilter: 'blur(2px)',
-          }} />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Prompt image */}
+      {post.type === 'PROMPT' && post.imageUrl && (
+        <div className="post-prompt-image">
+          <img src={post.imageUrl} alt={post.title} />
+        </div>
+      )}
 
       {/* Prompt text */}
-      <div className="post-prompt-text">
-        <p>{promptText}</p>
-        <CopyBtn text={promptText} />
-      </div>
+      {post.type === 'PROMPT' && post.content && (
+        <div className="post-prompt-text">
+          <p>{post.content}</p>
+          <CopyBtn text={post.content} />
+        </div>
+      )}
 
       {/* Actions */}
       <div className="post-actions">
         <div className="vote-group">
-          <button className="vote-btn active-up">
+          <button
+            className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
+            onClick={() => toggleVote(post.id, 'UP')}
+          >
             <ArrowBigUp size={20} />
           </button>
-          <span className="vote-count">892</span>
-          <button className="vote-btn">
+          <span className="vote-count">{post.voteScore}</span>
+          <button
+            className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
+            onClick={() => toggleVote(post.id, 'DOWN')}
+          >
             <ArrowBigDown size={20} />
           </button>
         </div>
-        <button className="action-btn">
-          <MessageSquare size={16} /> 8
-        </button>
-        <button className="action-btn">
-          <Copy size={16} /> 120
-        </button>
         <span className="action-spacer" />
-        <button className="action-btn">
-          <Flag size={16} />
+        <Link href={`/post/${post.id}`} className="action-btn" style={{ textDecoration: 'none' }}>
+          <MessageSquare size={18} /> {post.commentCount}
+        </Link>
+        <button className="action-btn" onClick={() => post.content && navigator.clipboard.writeText(post.content)}>
+          <Copy size={18} /> 0
         </button>
-        <button className="action-btn">
-          <Share2 size={16} />
-        </button>
-        <button className="action-btn">
-          <Bookmark size={16} />
-        </button>
+        <span className="action-divider" />
+        <button className="action-btn" style={{color: '#ef4444'}}><Flag size={18} /></button>
+        <button className="action-btn"><Share2 size={18} /></button>
+        <button className="action-btn"><Bookmark size={18} /></button>
       </div>
     </div>
   );
 }
 
 /* ===== Main Feed Content ===== */
-export default function FeedContent() {
+export default function FeedContent({ posts, currentUserId }: { posts: PostData[]; currentUserId?: string }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+
+  const filteredPosts = activeFilter === 'all'
+    ? posts
+    : posts.filter((p) => p.type === activeFilter.toUpperCase());
+
   return (
     <div className="feed-content">
-      <PostComposer />
-      <FeedFilterTabs />
-      <CodeSnippetPost />
-      <AiPromptPost />
+      <FeedFilterTabs active={activeFilter} onChange={setActiveFilter} />
+
+      {filteredPosts.length === 0 ? (
+        <div className="empty-state">
+          <p>ยังไม่มีโพสต์ ลองสร้างโพสต์แรกของคุณ!</p>
+        </div>
+      ) : (
+        filteredPosts.map((post) => (
+          <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+        ))
+      )}
+
+      <PostModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={() => window.location.reload()}
+      />
     </div>
   );
 }

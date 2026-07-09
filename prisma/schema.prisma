@@ -44,10 +44,15 @@ model User {
   emailVerified DateTime?
   image         String?
   passwordHash  String?   // For credentials login
-  
+  bio           String?
+  handle        String?   @unique
+
   accounts      Account[]
   sessions      Session[]
-  
+  posts         Post[]
+  votes         Vote[]
+  comments      Comment[]
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -69,4 +74,66 @@ model OtpCode {
   createdAt DateTime @default(now())
 
   @@index([email])
+}
+
+// ─────────────────────────────────────────────
+// Post (รองรับทั้ง CODE และ PROMPT)
+// ─────────────────────────────────────────────
+model Post {
+  id          String   @id @default(cuid())
+  type        String   // 'CODE' | 'PROMPT'
+  title       String
+  description String?  @db.Text
+  content     String?  @db.Text    // code content หรือ prompt text
+  language    String?              // ภาษาโค้ด เช่น "React", "Python"
+  aiModel     String?              // สำหรับ Prompt เช่น "Midjourney v6"
+  imageUrl    String?              // URL รูปผลงาน (Prompt)
+  tags        String[]             // ["React", "Python"]
+
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes       Vote[]
+  comments    Comment[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([type])
+}
+
+// ─────────────────────────────────────────────
+// Vote (1 คน = 1 โหวต ต่อ 1 โพสต์)
+// ─────────────────────────────────────────────
+model Vote {
+  id     String @id @default(cuid())
+  type   String // 'UP' | 'DOWN'
+
+  userId String
+  postId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+// ─────────────────────────────────────────────
+// Comment (ความคิดเห็น)
+// ─────────────────────────────────────────────
+model Comment {
+  id      String @id @default(cuid())
+  content String @db.Text
+
+  userId  String
+  postId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([postId])
 }

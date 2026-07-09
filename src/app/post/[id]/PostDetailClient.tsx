@@ -1,0 +1,181 @@
+'use client';
+
+import { useState } from 'react';
+import hljs from 'highlight.js';
+import {
+  Code2,
+  ArrowBigUp,
+  ArrowBigDown,
+  MessageSquare,
+  Copy,
+  Flag,
+  Share2,
+  Bookmark,
+  Check,
+} from 'lucide-react';
+import { toggleVote } from '@/lib/actions/post';
+
+function timeAgo(date: Date | string) {
+  const now = new Date();
+  const d = new Date(date);
+  const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diff < 60) return 'เมื่อกี้';
+  if (diff < 3600) return `${Math.floor(diff / 60)} นาทีที่แล้ว`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ชม. ที่แล้ว`;
+  return `${Math.floor(diff / 86400)} วัน ที่แล้ว`;
+}
+
+interface PostData {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  content: string | null;
+  language: string | null;
+  aiModel: string | null;
+  imageUrl: string | null;
+  tags: string[];
+  voteScore: number;
+  commentCount: number;
+  createdAt: Date | string;
+  author: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    handle: string | null;
+    image: string | null;
+  };
+  votes: { userId: string; type: string }[];
+}
+
+export default function PostDetailClient({ post, currentUser }: { post: PostData; currentUser?: { id: string } | null }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* fallback */ }
+  };
+
+  const userVote = currentUser
+    ? post.votes.find((v) => v.userId === currentUser.id)?.type
+    : null;
+
+  const avatarColor = post.type === 'CODE' ? '#3b82f6' : '#ec4899';
+
+  return (
+    <div className="post-detail-card">
+      {/* Header */}
+      <div className="post-detail-header">
+        <div className="post-detail-avatar" style={{ background: avatarColor }}>
+          {post.author.name?.charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="post-detail-author-info">
+          <div className="post-detail-author-name">
+            {post.author.name || 'ผู้ใช้'}
+          </div>
+          <div className="post-detail-author-handle" suppressHydrationWarning>
+            @{post.author.handle || post.author.email?.split('@')[0]} • {timeAgo(post.createdAt)}
+          </div>
+        </div>
+        <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`}>
+          {post.type === 'CODE' ? (
+            <><Code2 size={12} /> Code Snippet</>
+          ) : (
+            <>✨ AI Prompt</>
+          )}
+        </span>
+      </div>
+
+      {/* Content */}
+      <h1 className="post-detail-title">{post.title}</h1>
+      {post.description && (
+        <p className="post-detail-desc">{post.description}</p>
+      )}
+
+      {/* Tags */}
+      {post.tags.length > 0 && (
+        <div className="post-detail-tags">
+          {post.tags.map((tag) => (
+            <span key={tag} className="post-tag">#{tag}</span>
+          ))}
+        </div>
+      )}
+
+      {/* Code block */}
+      {post.type === 'CODE' && post.content && (
+        <div className="post-code-block">
+          <div className="post-code-header">
+            <span className="post-code-lang">{post.language || 'Code'}</span>
+            <button
+              className="post-code-copy"
+              onClick={() => handleCopy(post.content!)}
+              style={copied ? { color: '#22c55e' } : {}}
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
+            </button>
+          </div>
+          <div className="post-code-content">
+            <pre dangerouslySetInnerHTML={{ __html: hljs.highlightAuto(post.content).value }} />
+          </div>
+        </div>
+      )}
+
+      {/* Prompt content */}
+      {post.type === 'PROMPT' && (
+        <>
+          {post.imageUrl && (
+            <div className="post-prompt-image">
+              <img src={post.imageUrl} alt={post.title} />
+            </div>
+          )}
+          {post.content && (
+            <div className="post-prompt-text">
+              <p>{post.content}</p>
+              <button
+                className="post-code-copy"
+                onClick={() => handleCopy(post.content!)}
+                style={copied ? { color: '#22c55e' } : {}}
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Actions */}
+      <div className="post-actions">
+        <div className="vote-group">
+          <button
+            className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
+            onClick={() => toggleVote(post.id, 'UP')}
+          >
+            <ArrowBigUp size={20} />
+          </button>
+          <span className="vote-count">{post.voteScore}</span>
+          <button
+            className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
+            onClick={() => toggleVote(post.id, 'DOWN')}
+          >
+            <ArrowBigDown size={20} />
+          </button>
+        </div>
+        <button className="action-btn">
+          <MessageSquare size={16} /> {post.commentCount}
+        </button>
+        <button className="action-btn" onClick={() => post.content && handleCopy(post.content)}>
+          <Copy size={16} />
+        </button>
+        <span className="action-spacer" />
+        <button className="action-btn"><Flag size={16} /></button>
+        <button className="action-btn"><Share2 size={16} /></button>
+        <button className="action-btn"><Bookmark size={16} /></button>
+      </div>
+    </div>
+  );
+}
