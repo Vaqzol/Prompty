@@ -64,7 +64,7 @@ export async function getPosts(filter?: 'CODE' | 'PROMPT') {
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
-      votes: true,
+      votes: { select: { type: true, userId: true } },
       _count: {
         select: { comments: true, votes: true },
       },
@@ -250,7 +250,7 @@ export async function getMyPosts(filter?: 'CODE' | 'PROMPT') {
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
-      votes: true,
+      votes: { select: { type: true, userId: true } },
       _count: {
         select: { comments: true },
       },
@@ -287,7 +287,10 @@ export async function getUserProfile() {
   // คำนวณสถิติ
   const posts = await prisma.post.findMany({
     where: { authorId: user.id },
-    include: { votes: true, _count: { select: { comments: true } } },
+    select: {
+      votes: { select: { type: true } },
+      _count: { select: { comments: true } },
+    },
   });
 
   let totalVoteScore = 0;
