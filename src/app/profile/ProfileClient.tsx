@@ -151,6 +151,13 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
         </div>
       )}
 
+      {/* Prompt text */}
+      {post.type === 'PROMPT' && post.content && (
+        <div className="post-prompt-text" style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)' }}>
+          <p style={{ margin: 0 }}>{post.content}</p>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="post-actions">
         <div className="vote-group">

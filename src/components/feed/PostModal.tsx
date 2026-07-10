@@ -145,17 +145,28 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
       return;
     }
 
-    setIsSubmitting(true);
     try {
+      setIsSubmitting(true);
+      setError('');
+
+      // Auto-add any remaining tag in the input box if user forgot to press Enter
+      let finalTags = tags;
+      if (tagInput.trim()) {
+        const pendingTag = tagInput.trim().replace(/^#/, '');
+        if (pendingTag && !tags.includes(pendingTag)) {
+          finalTags = [...tags, pendingTag];
+        }
+      }
+
       if (editMode && editData) {
         const result = await updatePost(editData.id, {
           title,
-          description,
+          description: description || undefined,
           content,
           language: activeTab === 'CODE' ? language : undefined,
           aiModel: activeTab === 'PROMPT' ? aiModel : undefined,
           imageUrl: activeTab === 'PROMPT' ? imageUrl : undefined,
-          tags,
+          tags: finalTags,
         });
         if (!result.success) {
           setError(result.error || 'เกิดข้อผิดพลาด');
@@ -163,14 +174,14 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
         }
       } else {
         const result = await createPost({
-          type: activeTab,
           title,
-          description,
+          description: description || undefined,
           content,
+          type: activeTab,
           language: activeTab === 'CODE' ? language : undefined,
           aiModel: activeTab === 'PROMPT' ? aiModel : undefined,
           imageUrl: activeTab === 'PROMPT' ? imageUrl : undefined,
-          tags,
+          tags: finalTags,
         });
         if (!result.success) {
           setError(result.error || 'เกิดข้อผิดพลาด');
