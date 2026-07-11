@@ -59,10 +59,16 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
   const [content, setContent] = useState(editData?.content || '');
   const [language, setLanguage] = useState(editData?.language || '');
   const [aiModel, setAiModel] = useState(editData?.aiModel || 'Midjourney v6');
+  // imageUrl = URL จาก Supabase Storage (หรือ Base64 เดิมถ้าเป็นโพสต์เก่า)
   const [imageUrl, setImageUrl] = useState(editData?.imageUrl || '');
+  // imageFile = ไฟล์ที่ผู้ใช้เลือกใหม่ (ยังไม่ได้อัปโหลด)
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  // imagePreview = URL local สำหรับ preview เท่านั้น ไม่กิน egress
+  const [imagePreview, setImagePreview] = useState(editData?.imageUrl || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(editData?.tags || []);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -74,14 +80,23 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
         setError('ขนาดไฟล์ใหญ่เกินไป (สูงสุด 10MB)');
         return;
       }
-      
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result as string);
-        setError('');
-      };
-      reader.readAsDataURL(file);
+      // เก็บ File object ไว้อัปโหลดตอน submit
+      setImageFile(file);
+      // สร้าง local URL สำหรับ preview (ไม่กิน egress)
+      const localUrl = URL.createObjectURL(file);
+      setImagePreview(localUrl);
+      setError('');
     }
+  };
+
+  // อัปโหลดรูปจริงไป Supabase Storage
+  const uploadImageToStorage = async (file: File): Promise<string> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'อัปโหลดไม่สำเร็จ');
+    return data.url as string;
   };
 
   useEffect(() => {
@@ -102,7 +117,6 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
           'go', 'rust', 'xml', 'css', 'sql', 'json', 'php', 'ruby', 'csharp'
         ];
         const result = hljs.highlightAuto(content, languageSubset);
-        console.log('Auto-detected language:', result.language, 'Relevance:', result.relevance);
         
         if (result.language) {
           const mapped = hljsLangMap[result.language.toLowerCase()] || 'Other';
@@ -158,6 +172,15 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
         }
       }
 
+      // อัปโหลดรูปไป Supabase Storage ถ้ามีรูปใหม่
+      let finalImageUrl = imageUrl;
+      if (activeTab === 'PROMPT' && imageFile) {
+        setIsUploading(true);
+        setError('');
+        finalImageUrl = await uploadImageToStorage(imageFile);
+        setIsUploading(false);
+      }
+
       if (editMode && editData) {
         const result = await updatePost(editData.id, {
           title,
@@ -165,7 +188,7 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
           content,
           language: activeTab === 'CODE' ? language : undefined,
           aiModel: activeTab === 'PROMPT' ? aiModel : undefined,
-          imageUrl: activeTab === 'PROMPT' ? imageUrl : undefined,
+          imageUrl: activeTab === 'PROMPT' ? finalImageUrl : undefined,
           tags: finalTags,
         });
         if (!result.success) {
@@ -180,7 +203,7 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
           type: activeTab,
           language: activeTab === 'CODE' ? language : undefined,
           aiModel: activeTab === 'PROMPT' ? aiModel : undefined,
-          imageUrl: activeTab === 'PROMPT' ? imageUrl : undefined,
+          imageUrl: activeTab === 'PROMPT' ? finalImageUrl : undefined,
           tags: finalTags,
         });
         if (!result.success) {
@@ -190,8 +213,9 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
       }
       onSuccess?.();
       onClose();
-    } catch {
-      setError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    } catch (err) {
+      setIsUploading(false);
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด กรุณาลองใหม่');
     } finally {
       setIsSubmitting(false);
     }
@@ -351,10 +375,10 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                 </div>
 
                 <div className="modal-prompt-upload">
-                  {imageUrl ? (
+                  {imagePreview ? (
                     <div className="modal-prompt-preview">
-                      <img src={imageUrl} alt="Preview" />
-                      <button onClick={() => setImageUrl('')} className="modal-prompt-remove">
+                      <img src={imagePreview} alt="Preview" />
+                      <button onClick={() => { setImagePreview(''); setImageFile(null); setImageUrl(''); }} className="modal-prompt-remove">
                         <X size={16} />
                       </button>
                     </div>
@@ -405,9 +429,11 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
             <button
               className="modal-btn-submit"
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
             >
-              {editMode ? (
+              {isUploading ? (
+                <>กำลังอัปโหลดรูป...</>
+              ) : editMode ? (
                 <>บันทึก</>
               ) : (
                 <>โพสต์ <Send size={16} style={{ marginLeft: 4 }} /></>

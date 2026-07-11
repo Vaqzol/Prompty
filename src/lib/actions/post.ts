@@ -60,7 +60,17 @@ export async function getPosts(filter?: 'CODE' | 'PROMPT') {
 
   const posts = await prisma.post.findMany({
     where,
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      language: true,
+      aiModel: true,
+      tags: true,
+      createdAt: true,
+      content: true,
+      imageUrl: true,
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
@@ -246,7 +256,17 @@ export async function getMyPosts(filter?: 'CODE' | 'PROMPT') {
 
   const posts = await prisma.post.findMany({
     where,
-    include: {
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      type: true,
+      language: true,
+      aiModel: true,
+      tags: true,
+      createdAt: true,
+      content: true,
+      imageUrl: true,
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
@@ -299,7 +319,6 @@ export async function getUserProfile() {
     const up = post.votes.filter((v) => v.type === 'UP').length;
     const down = post.votes.filter((v) => v.type === 'DOWN').length;
     totalVoteScore += up - down;
-    // copies จะเก็บในอนาคต ตอนนี้ใช้ comment count แทน
     totalCopies += post._count.comments;
   });
 

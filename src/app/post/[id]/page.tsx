@@ -4,7 +4,6 @@ import { getPostById } from '@/lib/actions/post';
 import { auth } from '@/auth';
 import { User } from 'next-auth';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import PostDetailClient from './PostDetailClient';
 
 export default async function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
