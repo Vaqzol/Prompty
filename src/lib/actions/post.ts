@@ -75,6 +75,7 @@ export async function getPosts(filter?: 'CODE' | 'PROMPT') {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
       votes: { select: { type: true, userId: true } },
+      bookmarks: { select: { userId: true } },
       _count: {
         select: { comments: true, votes: true },
       },
@@ -105,6 +106,7 @@ export async function getPostById(id: string) {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
       votes: true,
+      bookmarks: { select: { userId: true } },
       comments: {
         include: {
           user: {
@@ -271,6 +273,7 @@ export async function getMyPosts(filter?: 'CODE' | 'PROMPT') {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
       votes: { select: { type: true, userId: true } },
+      bookmarks: { select: { userId: true } },
       _count: {
         select: { comments: true },
       },

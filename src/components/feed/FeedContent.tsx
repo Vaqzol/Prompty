@@ -18,7 +18,10 @@ import {
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import PostModal from './PostModal';
+import ReportModal from './ReportModal';
+import ShareModal from './ShareModal';
 import { toggleVote } from '@/lib/actions/post';
+import { toggleBookmark } from '@/lib/actions/bookmark';
 
 interface PostData {
   id: string;
@@ -41,6 +44,7 @@ interface PostData {
     image: string | null;
   };
   votes: { userId: string; type: string }[];
+  bookmarks?: { userId: string }[];
 }
 
 function timeAgo(date: Date | string) {
@@ -110,10 +114,19 @@ function CopyBtn({ text }: { text: string }) {
 
 /* ===== Post Card ===== */
 function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
+  const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(() => {
+    if (!currentUserId) return null;
+    const vote = post.votes.find((v) => v.userId === currentUserId);
+    return (vote?.type as 'UP' | 'DOWN') || null;
+  });
+
+  const initialBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(initialBookmarked as boolean);
+  
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
   const avatarColor = post.type === 'CODE' ? '#3b82f6' : '#ec4899';
-  const userVote = currentUserId
-    ? post.votes.find((v) => v.userId === currentUserId)?.type
-    : null;
 
   return (
     <div className="post-card">
@@ -206,10 +219,43 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
           <Copy size={18} /> 0
         </button>
         <span className="action-divider" />
-        <button className="action-btn" style={{color: '#ef4444'}}><Flag size={18} /></button>
-        <button className="action-btn"><Share2 size={18} /></button>
-        <button className="action-btn"><Bookmark size={18} /></button>
+        <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{color: '#ef4444'}}>
+          <Flag size={18} />
+        </button>
+        <button className="action-btn" onClick={() => setIsShareModalOpen(true)}>
+          <Share2 size={18} />
+        </button>
+        <button 
+          className="action-btn" 
+          onClick={async () => {
+            if (!currentUserId) {
+              alert('กรุณาเข้าสู่ระบบก่อน');
+              return;
+            }
+            // Optimistic update
+            setIsBookmarked(!isBookmarked);
+            const res = await toggleBookmark(post.id);
+            if (!res.success) {
+              setIsBookmarked(!isBookmarked); // Revert if fail
+              alert(res.error);
+            }
+          }}
+          style={{ color: isBookmarked ? '#3B82F6' : undefined }}
+        >
+          <Bookmark size={18} fill={isBookmarked ? '#3B82F6' : 'none'} />
+        </button>
       </div>
+
+      <ReportModal 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        postId={post.id} 
+      />
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        postId={post.id} 
+      />
     </div>
   );
 }

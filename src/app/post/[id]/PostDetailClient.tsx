@@ -14,7 +14,9 @@ import {
   Check,
 } from 'lucide-react';
 import { toggleVote } from '@/lib/actions/post';
-
+import ReportModal from '@/components/feed/ReportModal';
+import ShareModal from '@/components/feed/ShareModal';
+import { toggleBookmark } from '@/lib/actions/bookmark';
 function timeAgo(date: Date | string) {
   const now = new Date();
   const d = new Date(date);
@@ -37,6 +39,18 @@ interface PostData {
   tags: string[];
   voteScore: number;
   commentCount: number;
+  comments: {
+    id: string;
+    content: string;
+    createdAt: Date;
+    user: {
+      id: string;
+      name: string | null;
+      image: string | null;
+      handle: string | null;
+    }
+  }[];
+  bookmarks?: { userId: string }[];
   createdAt: Date | string;
   author: {
     id: string;
@@ -50,6 +64,11 @@ interface PostData {
 
 export default function PostDetailClient({ post, currentUser }: { post: PostData; currentUser?: { id: string } | null }) {
   const [copied, setCopied] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  
+  const initialBookmarked = currentUser && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUser.id) : false;
+  const [isBookmarked, setIsBookmarked] = useState<boolean>(!!initialBookmarked);
 
   const handleCopy = async (text: string) => {
     try {
@@ -172,10 +191,43 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
           <Copy size={16} />
         </button>
         <span className="action-spacer" />
-        <button className="action-btn"><Flag size={16} /></button>
-        <button className="action-btn"><Share2 size={16} /></button>
-        <button className="action-btn"><Bookmark size={16} /></button>
+        <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{color: '#ef4444'}}>
+          <Flag size={16} />
+        </button>
+        <button className="action-btn" onClick={() => setIsShareModalOpen(true)}>
+          <Share2 size={16} />
+        </button>
+        <button 
+          className="action-btn" 
+          onClick={async () => {
+            if (!currentUser) {
+              alert('กรุณาเข้าสู่ระบบก่อน');
+              return;
+            }
+            // Optimistic update
+            setIsBookmarked(!isBookmarked);
+            const res = await toggleBookmark(post.id);
+            if (!res.success) {
+              setIsBookmarked(!isBookmarked); // Revert if fail
+              alert(res.error);
+            }
+          }}
+          style={{ color: isBookmarked ? '#3B82F6' : undefined }}
+        >
+          <Bookmark size={16} fill={isBookmarked ? '#3B82F6' : 'none'} />
+        </button>
       </div>
+
+      <ReportModal 
+        isOpen={isReportModalOpen} 
+        onClose={() => setIsReportModalOpen(false)} 
+        postId={post.id} 
+      />
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        postId={post.id} 
+      />
     </div>
   );
 }

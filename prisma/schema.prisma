@@ -52,6 +52,8 @@ model User {
   posts         Post[]
   votes         Vote[]
   comments      Comment[]
+  reports       Report[]
+  bookmarks     Bookmark[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -94,6 +96,8 @@ model Post {
   author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   votes       Vote[]
   comments    Comment[]
+  reports     Report[]
+  bookmarks   Bookmark[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -135,5 +139,41 @@ model Comment {
 
   createdAt DateTime @default(now())
 
+  @@index([postId])
+}
+
+// ─────────────────────────────────────────────
+// Report (รายงานโพสต์ที่ไม่เหมาะสม)
+// ─────────────────────────────────────────────
+model Report {
+  id        String   @id @default(cuid())
+  reason    String   // เหตุผล เช่น "สแปม", "เนื้อหาไม่เหมาะสม", ฯลฯ
+  status    String   @default("PENDING") // "PENDING" | "REVIEWED" | "DISMISSED"
+
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([postId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// Bookmark (บันทึกโพสต์ไว้ดูภายหลัง)
+// ─────────────────────────────────────────────
+model Bookmark {
+  id        String   @id @default(cuid())
+
+  userId    String
+  postId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
   @@index([postId])
 }
