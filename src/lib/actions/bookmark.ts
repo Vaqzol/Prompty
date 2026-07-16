@@ -47,3 +47,44 @@ export async function toggleBookmark(postId: string) {
     return { success: false, error: 'เกิดข้อผิดพลาดในการบันทึกโพสต์' };
   }
 }
+
+// ─────────────────────────────────────────────
+// ดึงโพสต์ที่บันทึกไว้
+// ─────────────────────────────────────────────
+export async function getSavedPosts(filter?: 'CODE' | 'PROMPT') {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+
+  const where: Record<string, unknown> = { userId: session.user.id };
+  if (filter) {
+    where.post = { type: filter };
+  }
+
+  const bookmarks = await prisma.bookmark.findMany({
+    where,
+    include: {
+      post: {
+        include: {
+          author: {
+            select: { id: true, name: true, email: true, image: true, handle: true },
+          },
+          votes: { select: { type: true, userId: true } },
+          bookmarks: { select: { userId: true } },
+          _count: { select: { comments: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return bookmarks.map((bm) => {
+    const post = bm.post;
+    const upVotes = post.votes.filter((v) => v.type === 'UP').length;
+    const downVotes = post.votes.filter((v) => v.type === 'DOWN').length;
+    return {
+      ...post,
+      voteScore: upVotes - downVotes,
+      commentCount: post._count.comments,
+    };
+  });
+}

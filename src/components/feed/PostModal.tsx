@@ -124,7 +124,7 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
           setIsAutoDetected(true);
           setTimeout(() => setIsAutoDetected(false), 2000);
         }
-      } catch (e) {
+      } catch {
 
         // ignore
       } finally {

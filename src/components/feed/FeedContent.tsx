@@ -8,15 +8,16 @@ import {
   ArrowBigUp,
   ArrowBigDown,
   MessageSquare,
-  Copy,
   Flag,
   Share2,
   Bookmark,
-  Check,
   Sparkles,
 } from 'lucide-react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
+import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
+import CopyBtn from '@/components/shared/CopyBtn';
+import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import PostModal from './PostModal';
 import ReportModal from './ReportModal';
 import ShareModal from './ShareModal';
@@ -35,6 +36,7 @@ interface PostData {
   tags: string[];
   voteScore: number;
   commentCount: number;
+  copyCount?: number;
   createdAt: Date | string;
   author: {
     id: string;
@@ -88,38 +90,8 @@ function FeedFilterTabs({ active, onChange }: { active: string; onChange: (v: st
   );
 }
 
-/* ===== Copy Button ===== */
-function CopyBtn({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* fallback */ }
-  };
-
-  return (
-    <button
-      className="post-code-copy"
-      onClick={handleCopy}
-      style={copied ? { color: '#22c55e' } : {}}
-    >
-      {copied ? <Check size={14} /> : <Copy size={14} />}
-      {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
-    </button>
-  );
-}
-
 /* ===== Post Card ===== */
 function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
-  const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(() => {
-    if (!currentUserId) return null;
-    const vote = post.votes.find((v) => v.userId === currentUserId);
-    return (vote?.type as 'UP' | 'DOWN') || null;
-  });
-
   const initialBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
   const [isBookmarked, setIsBookmarked] = useState<boolean>(initialBookmarked as boolean);
   
@@ -132,8 +104,12 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
     <div className="post-card">
       {/* Header */}
       <div className="post-header">
-        <div className="post-avatar" style={{ background: avatarColor }}>
-          {post.author.name?.charAt(0).toUpperCase() || 'U'}
+        <div className="post-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
+          {post.author.image ? (
+            <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          ) : (
+            post.author.name?.charAt(0).toUpperCase() || 'U'
+          )}
         </div>
         <div className="post-author-info">
           <div className="post-author-name">{post.author.name || 'ผู้ใช้'}</div>
@@ -167,7 +143,7 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
         <div className="post-code-block">
           <div className="post-code-header">
             <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} />
+            <CopyBtn text={post.content} postId={post.id} />
           </div>
           <div className="post-code-content">
             <pre dangerouslySetInnerHTML={{ 
@@ -188,10 +164,7 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
 
       {/* Prompt text */}
       {post.type === 'PROMPT' && post.content && (
-        <div className="post-prompt-text">
-          <p>{post.content}</p>
-          <CopyBtn text={post.content} />
-        </div>
+        <PromptCopyBlock text={post.content} postId={post.id} />
       )}
 
       {/* Actions */}
@@ -215,9 +188,7 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
         <Link href={`/post/${post.id}`} className="action-btn" style={{ textDecoration: 'none' }}>
           <MessageSquare size={18} /> {post.commentCount}
         </Link>
-        <button className="action-btn" onClick={() => post.content && navigator.clipboard.writeText(post.content)}>
-          <Copy size={18} /> 0
-        </button>
+        <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
         <span className="action-divider" />
         <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{color: '#ef4444'}}>
           <Flag size={18} />

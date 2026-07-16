@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Copy, Check } from 'lucide-react';
 // We'll use basic SVGs for social icons to avoid external dependencies
 const XIcon = () => (

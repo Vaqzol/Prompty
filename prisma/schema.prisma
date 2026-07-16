@@ -46,6 +46,19 @@ model User {
   passwordHash  String?   // For credentials login
   bio           String?
   handle        String?   @unique
+  githubUrl     String?
+  twitterUrl    String?
+
+  // Notification preferences
+  notifyComments  Boolean @default(true)
+  notifyVotes     Boolean @default(true)
+  notifyFollowers Boolean @default(false)
+  notifyDigest    Boolean @default(false)
+  notifySecurity  Boolean @default(true)
+
+  // Appearance preferences
+  theme           String  @default("system") // "light" | "dark" | "system"
+  codeTheme       String  @default("vs-code-dark-modern")
 
   accounts      Account[]
   sessions      Session[]
@@ -54,6 +67,9 @@ model User {
   comments      Comment[]
   reports       Report[]
   bookmarks     Bookmark[]
+  notifications Notification[]
+  following     Follow[] @relation("follower")
+  followers     Follow[] @relation("following")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -91,6 +107,7 @@ model Post {
   aiModel     String?              // สำหรับ Prompt เช่น "Midjourney v6"
   imageUrl    String?              // URL รูปผลงาน (Prompt)
   tags        String[]             // ["React", "Python"]
+  copyCount   Int      @default(0)  // จำนวนครั้งที่ถูก Copy
 
   authorId    String
   author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -176,4 +193,43 @@ model Bookmark {
 
   @@unique([userId, postId])
   @@index([postId])
+}
+
+// ─────────────────────────────────────────────
+// Follow (ระบบติดตาม)
+// ─────────────────────────────────────────────
+model Follow {
+  id          String   @id @default(cuid())
+
+  followerId  String   // คนที่กดติดตาม
+  followingId String   // คนที่ถูกติดตาม
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+// ─────────────────────────────────────────────
+// Notification (การแจ้งเตือนในแอป)
+// ─────────────────────────────────────────────
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // "VOTE" | "COMMENT" | "FOLLOW" | "COPY_MILESTONE"
+  message   String   @db.Text
+  link      String?  // URL ไปยังโพสต์หรือหน้าที่เกี่ยวข้อง
+  isRead    Boolean  @default(false)
+
+  userId    String   // เจ้าของ Notification (คนที่จะเห็น)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  actorName String?  // ชื่อคนที่ทำกิจกรรม
+  postTitle String?  // ชื่อโพสต์ที่เกี่ยวข้อง
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

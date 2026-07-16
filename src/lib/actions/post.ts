@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
+import { createNotification } from './notification';
 
 // ─────────────────────────────────────────────
 // Helper: ดึง session ปัจจุบัน
@@ -71,6 +72,7 @@ export async function getPosts(filter?: 'CODE' | 'PROMPT') {
       createdAt: true,
       content: true,
       imageUrl: true,
+      copyCount: true,
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
@@ -218,6 +220,22 @@ export async function toggleVote(postId: string, type: 'UP' | 'DOWN') {
     await prisma.vote.create({
       data: { type, userId: session.user.id, postId },
     });
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { authorId: true, title: true },
+    });
+    
+    if (post && post.authorId !== session.user.id) {
+      await createNotification({
+        type: 'VOTE',
+        message: `โหวต ${type === 'UP' ? 'ถูกใจ' : 'ไม่ถูกใจ'} โพสต์ของคุณ`,
+        link: `/post/${postId}`,
+        userId: post.authorId,
+        actorName: session.user.name || 'ผู้ใช้งาน',
+        postTitle: post.title,
+      });
+    }
   }
 
   revalidatePath('/');
@@ -242,6 +260,22 @@ export async function createComment(postId: string, content: string) {
       postId,
     },
   });
+
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true, title: true },
+  });
+
+  if (post && post.authorId !== session.user.id) {
+    await createNotification({
+      type: 'COMMENT',
+      message: `แสดงความคิดเห็นในโพสต์ของคุณ: "${content.trim().slice(0, 30)}${content.length > 30 ? '...' : ''}"`,
+      link: `/post/${postId}`,
+      userId: post.authorId,
+      actorName: session.user.name || 'ผู้ใช้งาน',
+      postTitle: post.title,
+    });
+  }
 
   revalidatePath(`/post/${postId}`);
   return { success: true };
@@ -269,6 +303,7 @@ export async function getMyPosts(filter?: 'CODE' | 'PROMPT') {
       createdAt: true,
       content: true,
       imageUrl: true,
+      copyCount: true,
       author: {
         select: { id: true, name: true, email: true, image: true, handle: true },
       },
@@ -337,4 +372,93 @@ export async function getUserProfile() {
     totalCopies,
     totalPoints: totalVoteScore + totalCopies,
   };
+}
+
+// ─────────────────────────────────────────────
+// 10. ดึงข้อมูลโปรไฟล์สาธารณะ + สถิติ
+// ─────────────────────────────────────────────
+export async function getUserPublicProfile(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      _count: { select: { posts: true, followers: true, following: true } },
+    },
+  });
+
+  if (!user) return null;
+
+  const posts = await prisma.post.findMany({
+    where: { authorId: user.id },
+    select: {
+      votes: { select: { type: true } },
+      copyCount: true,
+    },
+  });
+
+  let totalVoteScore = 0;
+  let totalCopies = 0;
+  posts.forEach((post) => {
+    const up = post.votes.filter((v) => v.type === 'UP').length;
+    const down = post.votes.filter((v) => v.type === 'DOWN').length;
+    totalVoteScore += up - down;
+    totalCopies += post.copyCount;
+  });
+
+  return {
+    id: user.id,
+    name: user.name,
+    image: user.image,
+    bio: user.bio,
+    handle: user.handle || user.email?.split('@')[0] || null,
+    githubUrl: user.githubUrl,
+    twitterUrl: user.twitterUrl,
+    postCount: user._count.posts,
+    followerCount: user._count.followers,
+    followingCount: user._count.following,
+    totalVoteScore,
+    totalCopies,
+    totalPoints: totalVoteScore + totalCopies,
+  };
+}
+
+// ─────────────────────────────────────────────
+// 11. ดึงโพสต์ของ User ใดๆ
+// ─────────────────────────────────────────────
+export async function getUserPosts(userId: string, filter?: 'CODE' | 'PROMPT') {
+  const where: Record<string, unknown> = { authorId: userId };
+  if (filter) where.type = filter;
+
+  const posts = await prisma.post.findMany({
+    where,
+    select: {
+      id: true,
+      type: true,
+      title: true,
+      description: true,
+      content: true,
+      language: true,
+      aiModel: true,
+      imageUrl: true,
+      tags: true,
+      createdAt: true,
+      copyCount: true,
+      author: {
+        select: { id: true, name: true, email: true, image: true, handle: true },
+      },
+      votes: { select: { type: true, userId: true } },
+      bookmarks: { select: { userId: true } },
+      _count: { select: { comments: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return posts.map((post) => {
+    const upVotes = post.votes.filter((v) => v.type === 'UP').length;
+    const downVotes = post.votes.filter((v) => v.type === 'DOWN').length;
+    return {
+      ...post,
+      voteScore: upVotes - downVotes,
+      commentCount: post._count.comments,
+    };
+  });
 }

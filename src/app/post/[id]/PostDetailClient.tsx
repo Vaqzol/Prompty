@@ -7,16 +7,18 @@ import {
   ArrowBigUp,
   ArrowBigDown,
   MessageSquare,
-  Copy,
-  Flag,
   Share2,
   Bookmark,
-  Check,
+  Flag,
 } from 'lucide-react';
 import { toggleVote } from '@/lib/actions/post';
 import ReportModal from '@/components/feed/ReportModal';
 import ShareModal from '@/components/feed/ShareModal';
 import { toggleBookmark } from '@/lib/actions/bookmark';
+import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
+import CopyBtn from '@/components/shared/CopyBtn';
+import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
+
 function timeAgo(date: Date | string) {
   const now = new Date();
   const d = new Date(date);
@@ -39,6 +41,7 @@ interface PostData {
   tags: string[];
   voteScore: number;
   commentCount: number;
+  copyCount?: number;
   comments: {
     id: string;
     content: string;
@@ -63,20 +66,11 @@ interface PostData {
 }
 
 export default function PostDetailClient({ post, currentUser }: { post: PostData; currentUser?: { id: string } | null }) {
-  const [copied, setCopied] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   
   const initialBookmarked = currentUser && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUser.id) : false;
   const [isBookmarked, setIsBookmarked] = useState<boolean>(!!initialBookmarked);
-
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* fallback */ }
-  };
 
   const userVote = currentUser
     ? post.votes.find((v) => v.userId === currentUser.id)?.type
@@ -88,8 +82,12 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
     <div className="post-detail-card">
       {/* Header */}
       <div className="post-detail-header">
-        <div className="post-detail-avatar" style={{ background: avatarColor }}>
-          {post.author.name?.charAt(0).toUpperCase() || 'U'}
+        <div className="post-detail-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
+          {post.author.image ? (
+            <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+          ) : (
+            post.author.name?.charAt(0).toUpperCase() || 'U'
+          )}
         </div>
         <div className="post-detail-author-info">
           <div className="post-detail-author-name">
@@ -128,14 +126,7 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
         <div className="post-code-block">
           <div className="post-code-header">
             <span className="post-code-lang">{post.language || 'Code'}</span>
-            <button
-              className="post-code-copy"
-              onClick={() => handleCopy(post.content!)}
-              style={copied ? { color: '#22c55e' } : {}}
-            >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
-              {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
-            </button>
+            <CopyBtn text={post.content} postId={post.id} />
           </div>
           <div className="post-code-content">
             <pre dangerouslySetInnerHTML={{ __html: hljs.highlightAuto(post.content).value }} />
@@ -152,17 +143,7 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
             </div>
           )}
           {post.content && (
-            <div className="post-prompt-text">
-              <p>{post.content}</p>
-              <button
-                className="post-code-copy"
-                onClick={() => handleCopy(post.content!)}
-                style={copied ? { color: '#22c55e' } : {}}
-              >
-                {copied ? <Check size={14} /> : <Copy size={14} />}
-                {copied ? 'คัดลอกแล้ว' : 'คัดลอก'}
-              </button>
-            </div>
+            <PromptCopyBlock text={post.content} postId={post.id} />
           )}
         </>
       )}
@@ -187,9 +168,7 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
         <button className="action-btn">
           <MessageSquare size={16} /> {post.commentCount}
         </button>
-        <button className="action-btn" onClick={() => post.content && handleCopy(post.content)}>
-          <Copy size={16} />
-        </button>
+        <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
         <span className="action-spacer" />
         <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{color: '#ef4444'}}>
           <Flag size={16} />

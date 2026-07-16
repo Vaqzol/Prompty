@@ -13,12 +13,14 @@ import {
   ArrowBigUp,
   ArrowBigDown,
   MessageSquare,
-  Copy,
   Share2,
   Bookmark,
   Flag,
 } from 'lucide-react';
 import { deletePost, getMyPosts } from '@/lib/actions/post';
+import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
+import CopyBtn from '@/components/shared/CopyBtn';
+import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import PostModal from '@/components/feed/PostModal';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
@@ -58,6 +60,7 @@ interface PostData {
   tags: string[];
   voteScore: number;
   commentCount: number;
+  copyCount?: number;
   createdAt: Date | string;
   author: {
     id: string;
@@ -133,6 +136,7 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
         <div className="post-code-block">
           <div className="post-code-header">
             <span className="post-code-lang">{post.language || 'Code'}</span>
+            <CopyBtn text={post.content} postId={post.id} />
           </div>
           <div className="post-code-content">
             <pre dangerouslySetInnerHTML={{ 
@@ -153,9 +157,7 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
 
       {/* Prompt text */}
       {post.type === 'PROMPT' && post.content && (
-        <div className="post-prompt-text" style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)' }}>
-          <p style={{ margin: 0 }}>{post.content}</p>
-        </div>
+        <PromptCopyBlock text={post.content} postId={post.id} />
       )}
 
       {/* Actions */}
@@ -165,9 +167,8 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
           <span className="vote-count">{post.voteScore}</span>
           <button className="vote-btn"><ArrowBigDown size={20} /></button>
         </div>
-        <span className="action-spacer" />
         <button className="action-btn"><MessageSquare size={18} /> {post.commentCount}</button>
-        <button className="action-btn"><Copy size={18} /> 0</button>
+        <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
         <span className="action-divider" />
         <button className="action-btn" style={{color: '#ef4444'}}><Flag size={18} /></button>
         <button className="action-btn"><Share2 size={18} /></button>
@@ -215,9 +216,9 @@ export default function ProfileClient({ profile, initialPosts }: { profile: Prof
               )}
             </div>
           </div>
-          <div className="profile-edit-icon">
+          <Link href="/settings/profile" className="profile-edit-icon" title="แก้ไขโปรไฟล์">
             <Pencil size={16} />
-          </div>
+          </Link>
 
           <h2 className="profile-name">{profile.name || 'ผู้ใช้งาน'}</h2>
           <p className="profile-handle-text">@{profile.handle}</p>
