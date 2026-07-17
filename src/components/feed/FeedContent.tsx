@@ -92,6 +92,12 @@ function FeedFilterTabs({ active, onChange }: { active: string; onChange: (v: st
 
 /* ===== Post Card ===== */
 function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
+  const userVote: 'UP' | 'DOWN' | null = (() => {
+    if (!currentUserId) return null;
+    const vote = post.votes.find((v) => v.userId === currentUserId);
+    return (vote?.type as 'UP' | 'DOWN') || null;
+  })();
+
   const initialBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
   const [isBookmarked, setIsBookmarked] = useState<boolean>(initialBookmarked as boolean);
   

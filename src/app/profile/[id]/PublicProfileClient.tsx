@@ -3,10 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
+  Code2,
   ThumbsUp,
   ClipboardCopy,
   Star,
-  Code2,
   ArrowBigUp,
   ArrowBigDown,
   MessageSquare,
@@ -15,10 +15,7 @@ import {
   UserPlus,
   UserMinus,
   Copy,
-  Check,
 } from 'lucide-react';
-import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
-import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import { toggleVote } from '@/lib/actions/post';
 import { toggleFollow } from '@/lib/actions/follow';
 import { trackCopy } from '@/lib/actions/copy';
@@ -35,24 +32,6 @@ function timeAgo(date: Date | string) {
   return `${Math.floor(diff / 86400)} วัน ที่แล้ว`;
 }
 
-function CopyBtn({ text, postId }: { text: string, postId: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className="btn-icon"
-      onClick={async () => {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-        await trackCopy(postId);
-      }}
-      style={copied ? { color: '#22c55e' } : {}}
-      title="คัดลอก"
-    >
-      {copied ? <Check size={18} /> : <Copy size={18} />}
-    </button>
-  );
-}
 
 interface PublicProfileData {
   id: string;
