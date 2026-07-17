@@ -1,12 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Flag, Share2, Bookmark, Code2, Sparkles } from 'lucide-react';
+import {
+  ArrowBigUp, ArrowBigDown, MessageSquare, Flag, Share2,
+  Bookmark, Code2, Sparkles, Plus, MoreHorizontal, Pencil,
+  Trash2, FolderOpen, FolderInput, X,
+} from 'lucide-react';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { toggleVote } from '@/lib/actions/post';
-import { toggleBookmark } from '@/lib/actions/bookmark';
+import { toggleBookmark, createCollection, renameCollection, deleteCollection, moveToCollection } from '@/lib/actions/bookmark';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
@@ -26,6 +30,8 @@ interface PostData {
   voteScore: number;
   commentCount: number;
   copyCount?: number;
+  bookmarkId?: string;
+  collectionId?: string | null;
   createdAt: Date | string;
   author: {
     id: string;
@@ -38,6 +44,12 @@ interface PostData {
   bookmarks?: { userId: string }[];
 }
 
+interface CollectionData {
+  id: string;
+  name: string;
+  count: number;
+}
+
 function timeAgo(date: Date | string) {
   const now = new Date();
   const d = new Date(date);
@@ -48,55 +60,273 @@ function timeAgo(date: Date | string) {
   return `${Math.floor(diff / 86400)} วัน ที่แล้ว`;
 }
 
+type FilterType = 'all' | 'CODE' | 'PROMPT' | string;
 
+export default function BookmarksClient({
+  posts,
+  collections: initialCollections,
+  currentUserId,
+}: {
+  posts: PostData[];
+  collections: CollectionData[];
+  currentUserId?: string;
+}) {
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [collections, setCollections] = useState<CollectionData[]>(initialCollections);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const [hasEnteredMenu, setHasEnteredMenu] = useState(false);
+  const createInputRef = useRef<HTMLInputElement>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
 
-const TABS = [
-  { label: 'ทั้งหมดที่บันทึกไว้', value: 'all' },
-  { label: '▪️ Code Snippets', value: 'CODE' },
-  { label: '✨ AI Prompts', value: 'PROMPT' },
-];
+  // Add click-outside listener for the sidebar menu
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Element;
+      // If a menu is open and the click is outside any sidebar-collection-wrapper, close it
+      if (menuOpenId && !target.closest('.sidebar-collection-wrapper')) {
+        setMenuOpenId(null);
+        setHasEnteredMenu(false);
+      }
+    }
+    
+    if (menuOpenId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpenId]);
 
-export default function BookmarksClient({ posts, currentUserId }: { posts: PostData[]; currentUserId?: string }) {
-  const [activeTab, setActiveTab] = useState('all');
+  useEffect(() => {
+    if (isCreating && createInputRef.current) createInputRef.current.focus();
+  }, [isCreating]);
 
-  const filtered = activeTab === 'all' ? posts : posts.filter((p) => p.type === activeTab);
+  useEffect(() => {
+    if (editingId && editInputRef.current) editInputRef.current.focus();
+  }, [editingId]);
+
+  // Filter posts
+  const filtered = (() => {
+    if (activeFilter === 'all') return posts;
+    if (activeFilter === 'CODE') return posts.filter((p) => p.type === 'CODE');
+    if (activeFilter === 'PROMPT') return posts.filter((p) => p.type === 'PROMPT');
+    // Collection filter
+    return posts.filter((p) => p.collectionId === activeFilter);
+  })();
+
+  const handleCreate = async () => {
+    if (!newName.trim()) { setIsCreating(false); return; }
+    const result = await createCollection(newName.trim());
+    if (result.success && result.collection) {
+      setCollections([...collections, result.collection]);
+    } else {
+      alert(result.error);
+    }
+    setNewName('');
+    setIsCreating(false);
+  };
+
+  const handleRename = async (id: string) => {
+    if (!editName.trim()) { setEditingId(null); return; }
+    const result = await renameCollection(id, editName.trim());
+    if (result.success) {
+      setCollections(collections.map((c) => c.id === id ? { ...c, name: editName.trim() } : c));
+    } else {
+      alert(result.error);
+    }
+    setEditingId(null);
+    setEditName('');
+  };
+
+  const handleDelete = async (colId: string) => {
+    if (!confirm('ลบคอลเลกชันนี้? โพสต์ที่อยู่ในนี้จะถูกย้ายกลับไปที่ "ทั้งหมด"')) return;
+    const result = await deleteCollection(colId);
+    if (result.success) {
+      setCollections(collections.filter((c) => c.id !== colId));
+      if (activeFilter === colId) setActiveFilter('all');
+    } else {
+      alert(result.error);
+    }
+    setMenuOpenId(null);
+  };
 
   return (
-    <div className="bookmarks-container">
-      <div className="bookmarks-header">
-        <h1>📌 รายการที่บันทึกไว้</h1>
-        <p>รวมชุดโค้ด พรอมต์ และไอเดียทั้งหมดที่คุณบันทึกไว้</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="bookmarks-tabs">
-        {TABS.map((tab) => (
+    <div className="bookmarks-layout">
+      {/* ===== Sidebar ===== */}
+      <aside className="bookmarks-sidebar">
+        <div className="sidebar-section">
+          <span className="sidebar-label">ตัวกรอง</span>
           <button
-            key={tab.value}
-            className={`bookmarks-tab ${activeTab === tab.value ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.value)}
+            className={`sidebar-item ${activeFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('all')}
           >
-            {tab.label}
+            <Bookmark size={16} />
+            <span>ทั้งหมด</span>
+            <span className="sidebar-count">{posts.length}</span>
           </button>
-        ))}
-      </div>
-
-      {/* Posts */}
-      {filtered.length === 0 ? (
-        <div className="empty-state" style={{ padding: '60px 0', textAlign: 'center' }}>
-          <Bookmark size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-          <p style={{ color: 'var(--text-muted)' }}>ยังไม่มีโพสต์ที่บันทึกไว้</p>
+          <button
+            className={`sidebar-item ${activeFilter === 'CODE' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('CODE')}
+          >
+            <Code2 size={16} />
+            <span>Code Snippets</span>
+            <span className="sidebar-count">{posts.filter((p) => p.type === 'CODE').length}</span>
+          </button>
+          <button
+            className={`sidebar-item ${activeFilter === 'PROMPT' ? 'active' : ''}`}
+            onClick={() => setActiveFilter('PROMPT')}
+          >
+            <Sparkles size={16} />
+            <span>AI Prompts</span>
+            <span className="sidebar-count">{posts.filter((p) => p.type === 'PROMPT').length}</span>
+          </button>
         </div>
-      ) : (
-        filtered.map((post) => (
-          <SavedPostCard key={post.id} post={post} currentUserId={currentUserId} />
-        ))
-      )}
+
+        <div className="sidebar-divider" />
+
+        <div className="sidebar-section">
+          <span className="sidebar-label">คอลเลกชัน</span>
+
+          {collections.map((col) => (
+            <div key={col.id} className="sidebar-collection-wrapper">
+              {editingId === col.id ? (
+                <div className="sidebar-inline-input">
+                  <input
+                    ref={editInputRef}
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleRename(col.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    onBlur={() => handleRename(col.id)}
+                    placeholder="ชื่อคอลเลกชัน..."
+                    maxLength={50}
+                  />
+                </div>
+              ) : (
+                <div
+                  className={`sidebar-item ${activeFilter === col.id ? 'active' : ''}`}
+                  onClick={() => setActiveFilter(col.id)}
+                  style={{ paddingRight: '28px' }}
+                >
+                  <FolderOpen size={16} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.name}</span>
+                  <span className="sidebar-count">{col.count}</span>
+                  <button
+                    className="sidebar-menu-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHasEnteredMenu(false);
+                      setMenuOpenId(menuOpenId === col.id ? null : col.id);
+                    }}
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+                </div>
+              )}
+
+              {menuOpenId === col.id && (
+                <div 
+                  className="sidebar-menu-dropdown"
+                  onMouseEnter={() => setHasEnteredMenu(true)}
+                  onMouseLeave={() => {
+                    if (hasEnteredMenu) {
+                      setMenuOpenId(null);
+                      setHasEnteredMenu(false);
+                    }
+                  }}
+                >
+                  <button onClick={() => {
+                    setEditingId(col.id);
+                    setEditName(col.name);
+                    setMenuOpenId(null);
+                  }}>
+                    <Pencil size={14} /> เปลี่ยนชื่อ
+                  </button>
+                  <button className="danger" onClick={() => handleDelete(col.id)}>
+                    <Trash2 size={14} /> ลบ
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {isCreating ? (
+            <div className="sidebar-inline-input">
+              <input
+                ref={createInputRef}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreate();
+                  if (e.key === 'Escape') { setIsCreating(false); setNewName(''); }
+                }}
+                onBlur={handleCreate}
+                placeholder="ชื่อคอลเลกชันใหม่..."
+                maxLength={50}
+              />
+            </div>
+          ) : (
+            <button className="sidebar-item sidebar-add-btn" onClick={() => setIsCreating(true)}>
+              <Plus size={16} />
+              <span>สร้างคอลเลกชัน</span>
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* ===== Main Content ===== */}
+      <main className="bookmarks-content">
+        <div className="bookmarks-header">
+          <h1>
+            {activeFilter === 'all' && '📌 รายการที่บันทึกไว้'}
+            {activeFilter === 'CODE' && '▪️ Code Snippets ที่บันทึก'}
+            {activeFilter === 'PROMPT' && '✨ AI Prompts ที่บันทึก'}
+            {!['all', 'CODE', 'PROMPT'].includes(activeFilter) &&
+              `📁 ${collections.find((c) => c.id === activeFilter)?.name || 'คอลเลกชัน'}`}
+          </h1>
+          <p>
+            {filtered.length === 0
+              ? 'ยังไม่มีโพสต์ในคอลเลกชันนี้'
+              : `${filtered.length} โพสต์ที่บันทึกไว้`}
+          </p>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div className="empty-state" style={{ padding: '60px 0', textAlign: 'center' }}>
+            <Bookmark size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
+            <p style={{ color: 'var(--text-muted)' }}>ยังไม่มีโพสต์ที่บันทึกไว้</p>
+          </div>
+        ) : (
+          filtered.map((post) => (
+            <SavedPostCard
+              key={post.id}
+              post={post}
+              currentUserId={currentUserId}
+              collections={collections}
+            />
+          ))
+        )}
+      </main>
     </div>
   );
 }
 
-function SavedPostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
+/* ===== Saved Post Card ===== */
+function SavedPostCard({
+  post,
+  currentUserId,
+  collections,
+}: {
+  post: PostData;
+  currentUserId?: string;
+  collections: CollectionData[];
+}) {
   const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(() => {
     if (!currentUserId) return null;
     const vote = post.votes.find((v) => v.userId === currentUserId);
@@ -105,11 +335,22 @@ function SavedPostCard({ post, currentUserId }: { post: PostData; currentUserId?
   const [isBookmarked, setIsBookmarked] = useState(true);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isMoveOpen, setIsMoveOpen] = useState(false);
+  const [currentCollectionId, setCurrentCollectionId] = useState(post.collectionId || null);
 
   const handleVote = async (type: 'UP' | 'DOWN') => {
     if (!currentUserId) return;
     setUserVote(userVote === type ? null : type);
     await toggleVote(post.id, type);
+  };
+
+  const handleMove = async (collectionId: string | null) => {
+    if (!post.bookmarkId) return;
+    const result = await moveToCollection(post.bookmarkId, collectionId);
+    if (result.success) {
+      setCurrentCollectionId(collectionId);
+    }
+    setIsMoveOpen(false);
   };
 
   return (
@@ -169,6 +410,14 @@ function SavedPostCard({ post, currentUserId }: { post: PostData; currentUserId?
         <PromptCopyBlock text={post.content} postId={post.id} />
       )}
 
+      {/* Collection badge */}
+      {currentCollectionId && (
+        <div className="bookmark-collection-badge">
+          <FolderOpen size={12} />
+          <span>{collections.find((c) => c.id === currentCollectionId)?.name || 'คอลเลกชัน'}</span>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="post-actions">
         <div className="vote-group">
@@ -185,6 +434,37 @@ function SavedPostCard({ post, currentUserId }: { post: PostData; currentUserId?
           <MessageSquare size={18} /> {post.commentCount}
         </Link>
         <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
+
+        {/* Move to collection button */}
+        <div style={{ position: 'relative' }}>
+          <button className="action-btn" onClick={() => setIsMoveOpen(!isMoveOpen)} title="ย้ายคอลเลกชัน">
+            <FolderInput size={18} />
+          </button>
+          {isMoveOpen && (
+            <div className="move-collection-dropdown">
+              <div className="move-dropdown-header">
+                <span>ย้ายไปยัง</span>
+                <button onClick={() => setIsMoveOpen(false)}><X size={14} /></button>
+              </div>
+              <button
+                className={`move-dropdown-item ${!currentCollectionId ? 'active' : ''}`}
+                onClick={() => handleMove(null)}
+              >
+                <Bookmark size={14} /> ไม่จัดคอลเลกชัน
+              </button>
+              {collections.map((col) => (
+                <button
+                  key={col.id}
+                  className={`move-dropdown-item ${currentCollectionId === col.id ? 'active' : ''}`}
+                  onClick={() => handleMove(col.id)}
+                >
+                  <FolderOpen size={14} /> {col.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <span className="action-divider" />
         <button className="action-btn" onClick={() => setIsReportOpen(true)} style={{ color: '#ef4444' }}>
           <Flag size={18} />

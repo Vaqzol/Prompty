@@ -67,6 +67,7 @@ model User {
   comments      Comment[]
   reports       Report[]
   bookmarks     Bookmark[]
+  collections   BookmarkCollection[]
   notifications Notification[]
   following     Follow[] @relation("follower")
   followers     Follow[] @relation("following")
@@ -179,20 +180,40 @@ model Report {
 }
 
 // ─────────────────────────────────────────────
+// Bookmark Collection (หมวดหมู่ที่ผู้ใช้สร้างเอง)
+// ─────────────────────────────────────────────
+model BookmarkCollection {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookmarks Bookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
 // Bookmark (บันทึกโพสต์ไว้ดูภายหลัง)
 // ─────────────────────────────────────────────
 model Bookmark {
-  id        String   @id @default(cuid())
+  id           String   @id @default(cuid())
 
-  userId    String
-  postId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId       String
+  postId       String
+  collectionId String?
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post         Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  collection   BookmarkCollection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   @@unique([userId, postId])
   @@index([postId])
+  @@index([collectionId])
 }
 
 // ─────────────────────────────────────────────

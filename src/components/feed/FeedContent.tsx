@@ -10,7 +10,6 @@ import {
   MessageSquare,
   Flag,
   Share2,
-  Bookmark,
   Sparkles,
 } from 'lucide-react';
 import hljs from 'highlight.js';
@@ -21,8 +20,8 @@ import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import PostModal from './PostModal';
 import ReportModal from './ReportModal';
 import ShareModal from './ShareModal';
+import BookmarkButton from '@/components/shared/BookmarkButton';
 import { toggleVote } from '@/lib/actions/post';
-import { toggleBookmark } from '@/lib/actions/bookmark';
 
 interface PostData {
   id: string;
@@ -98,8 +97,7 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
     return (vote?.type as 'UP' | 'DOWN') || null;
   })();
 
-  const initialBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
-  const [isBookmarked, setIsBookmarked] = useState<boolean>(initialBookmarked as boolean);
+  const isBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
   
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -202,25 +200,11 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
         <button className="action-btn" onClick={() => setIsShareModalOpen(true)}>
           <Share2 size={18} />
         </button>
-        <button 
-          className="action-btn" 
-          onClick={async () => {
-            if (!currentUserId) {
-              alert('กรุณาเข้าสู่ระบบก่อน');
-              return;
-            }
-            // Optimistic update
-            setIsBookmarked(!isBookmarked);
-            const res = await toggleBookmark(post.id);
-            if (!res.success) {
-              setIsBookmarked(!isBookmarked); // Revert if fail
-              alert(res.error);
-            }
-          }}
-          style={{ color: isBookmarked ? '#3B82F6' : undefined }}
-        >
-          <Bookmark size={18} fill={isBookmarked ? '#3B82F6' : 'none'} />
-        </button>
+        <BookmarkButton 
+          postId={post.id} 
+          initialBookmarked={isBookmarked} 
+          initialCollectionId={null} // Feed doesn't know initial collection, which is fine, it will just default to Uncategorized until selected
+        />
       </div>
 
       <ReportModal 
