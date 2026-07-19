@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Search, Plus, Bookmark, User, Settings, LogOut } from 'lucide-react';
 import PromptyLogo from '@/components/shared/PromptyLogo';
 import { signOut } from 'next-auth/react';
@@ -23,7 +23,17 @@ export default function MainNavbar({ user }: { user?: NextAuthUser | null }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    }
+  };
   // ปิด dropdown เมื่อคลิกที่อื่น
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -51,10 +61,15 @@ export default function MainNavbar({ user }: { user?: NextAuthUser | null }) {
           </Link>
 
           {/* Search */}
-          <div className="navbar-search">
+          <form className="navbar-search" onSubmit={handleSearch}>
             <Search size={16} className="search-icon" />
-            <input type="text" placeholder="ค้นหา" />
-          </div>
+            <input
+              type="text"
+              placeholder="ค้นหาโพสต์, ผู้ใช้, แท็ก..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </form>
 
           {/* Navigation Tabs */}
           <div className="navbar-tabs">
