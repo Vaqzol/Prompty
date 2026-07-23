@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ArrowBigUp, ArrowBigDown, Reply } from 'lucide-react';
 import { createComment } from '@/lib/actions/post';
 
@@ -93,8 +94,10 @@ export default function CommentSection({ postId, comments, currentUser }: Commen
               </div>
               <div className="comment-body">
                 <div className="comment-meta">
-                  <span className="comment-author">{comment.user.name || 'ผู้ใช้'}</span>
-                  <span className="comment-handle">@{comment.user.handle || comment.user.email?.split('@')[0]}</span>
+                  <Link href={`/profile/${comment.user.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', gap: '4px' }}>
+                    <span className="comment-author">{comment.user.name || 'ผู้ใช้'}</span>
+                    <span className="comment-handle">@{comment.user.handle || comment.user.email?.split('@')[0]}</span>
+                  </Link>
                   <span className="comment-time">• {timeAgo(comment.createdAt)}</span>
                 </div>
                 <p className="comment-content">{comment.content}</p>

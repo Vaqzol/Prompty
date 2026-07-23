@@ -357,17 +357,21 @@ function SavedPostCard({
     <div className="post-card">
       {/* Header */}
       <div className="post-header">
-        <div className="post-avatar" style={{ background: post.type === 'CODE' ? '#dbeafe' : '#fce7f3' }}>
-          {post.author.image ? (
-            <img src={post.author.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-          ) : (
-            <span style={{ fontWeight: '600', color: post.type === 'CODE' ? '#3b82f6' : '#ec4899' }}>
-              {(post.author.name || 'U').charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
+        <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="post-avatar" style={{ background: post.type === 'CODE' ? '#dbeafe' : '#fce7f3' }}>
+            {post.author.image ? (
+              <img src={post.author.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            ) : (
+              <span style={{ fontWeight: '600', color: post.type === 'CODE' ? '#3b82f6' : '#ec4899' }}>
+                {(post.author.name || 'U').charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+        </Link>
         <div className="post-meta">
-          <span className="post-author">{post.author.name || 'ผู้ใช้งาน'}</span>
+          <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <span className="post-author">{post.author.name || 'ผู้ใช้งาน'}</span>
+          </Link>
           <span className="post-time">{timeAgo(post.createdAt)}</span>
         </div>
         <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`}>

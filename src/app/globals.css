@@ -3716,3 +3716,31 @@ a {
 .notification-footer a:hover {
   color: var(--text-primary);
 }
+
+/* Author Links Hover Effects */
+.post-author-name,
+.post-author,
+.comment-author,
+.post-detail-author-name {
+  transition: color 0.2s ease;
+  text-decoration: none;
+}
+
+.post-author-name:hover,
+.post-author:hover,
+.comment-author:hover,
+.post-detail-author-name:hover {
+  color: var(--brand-primary);
+  text-decoration: none;
+}
+
+.post-avatar,
+.post-detail-avatar {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.post-avatar:hover,
+.post-detail-avatar:hover {
+  opacity: 0.9;
+  transform: scale(1.04);
+}

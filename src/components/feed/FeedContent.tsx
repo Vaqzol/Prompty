@@ -108,15 +108,19 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
     <div className="post-card">
       {/* Header */}
       <div className="post-header">
-        <div className="post-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
-          {post.author.image ? (
-            <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-          ) : (
-            post.author.name?.charAt(0).toUpperCase() || 'U'
-          )}
-        </div>
+        <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="post-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
+            {post.author.image ? (
+              <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            ) : (
+              post.author.name?.charAt(0).toUpperCase() || 'U'
+            )}
+          </div>
+        </Link>
         <div className="post-author-info">
-          <div className="post-author-name">{post.author.name || 'ผู้ใช้'}</div>
+          <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="post-author-name">{post.author.name || 'ผู้ใช้'}</div>
+          </Link>
           <div className="post-time" suppressHydrationWarning>{timeAgo(post.createdAt)}</div>
         </div>
         <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`} style={{ marginLeft: 'auto' }}>

@@ -1,5 +1,6 @@
 'use client';
 
+import '../profile.css';
 import { useState } from 'react';
 import Link from 'next/link';
 import {
@@ -124,15 +125,14 @@ export default function PublicProfileClient({
           <p className="profile-handle">@{profile.handle || 'user'}</p>
           
           <button
-            className={`btn ${isFollowing ? 'btn-outline' : 'btn-primary'} btn-block`}
-            style={{ marginTop: '16px' }}
+            className={`profile-follow-btn ${isFollowing ? 'following' : 'follow'}`}
             onClick={handleFollowToggle}
             disabled={loadingFollow}
           >
             {isFollowing ? (
-              <><UserMinus size={16} style={{ marginRight: '8px' }} /> เลิกติดตาม</>
+              <><UserMinus size={16} /> เลิกติดตาม</>
             ) : (
-              <><UserPlus size={16} style={{ marginRight: '8px' }} /> ติดตาม</>
+              <><UserPlus size={16} /> ติดตาม</>
             )}
           </button>
 
@@ -167,7 +167,7 @@ export default function PublicProfileClient({
           <h3>ความสำเร็จ</h3>
           <div className="achievement-item">
             <div className="achievement-icon" style={{ background: '#dbeafe', color: '#3b82f6' }}>
-              <ThumbsUp size={18} />
+              <ThumbsUp size={15} />
             </div>
             <div className="achievement-info">
               <span className="achievement-value">{profile.totalVoteScore}</span>
@@ -176,7 +176,7 @@ export default function PublicProfileClient({
           </div>
           <div className="achievement-item">
             <div className="achievement-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-              <ClipboardCopy size={18} />
+              <ClipboardCopy size={15} />
             </div>
             <div className="achievement-info">
               <span className="achievement-value">{profile.totalCopies}</span>
@@ -185,7 +185,7 @@ export default function PublicProfileClient({
           </div>
           <div className="achievement-item">
             <div className="achievement-icon" style={{ background: '#e0e7ff', color: '#4f46e5' }}>
-              <Star size={18} />
+              <Star size={15} />
             </div>
             <div className="achievement-info">
               <span className="achievement-value">{profile.totalPoints}</span>

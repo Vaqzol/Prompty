@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import hljs from 'highlight.js';
 import {
   Code2,
@@ -82,17 +83,21 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
     <div className="post-detail-card">
       {/* Header */}
       <div className="post-detail-header">
-        <div className="post-detail-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
-          {post.author.image ? (
-            <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-          ) : (
-            post.author.name?.charAt(0).toUpperCase() || 'U'
-          )}
-        </div>
-        <div className="post-detail-author-info">
-          <div className="post-detail-author-name">
-            {post.author.name || 'ผู้ใช้'}
+        <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <div className="post-detail-avatar" style={!post.author.image ? { background: avatarColor } : { background: 'transparent' }}>
+            {post.author.image ? (
+              <img src={post.author.image} alt={post.author.name || ''} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+            ) : (
+              post.author.name?.charAt(0).toUpperCase() || 'U'
+            )}
           </div>
+        </Link>
+        <div className="post-detail-author-info">
+          <Link href={`/profile/${post.author.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+            <div className="post-detail-author-name">
+              {post.author.name || 'ผู้ใช้'}
+            </div>
+          </Link>
           <div className="post-detail-author-handle" suppressHydrationWarning>
             @{post.author.handle || post.author.email?.split('@')[0]} • {timeAgo(post.createdAt)}
           </div>

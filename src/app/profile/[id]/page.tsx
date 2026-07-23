@@ -5,18 +5,19 @@ import { getUserPublicProfile, getUserPosts } from '@/lib/actions/post';
 import { redirect, notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 
-export default async function PublicProfilePage({ params }: { params: { id: string } }) {
+export default async function PublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
+  const { id } = await params;
   
   // ถ้าเป็น profile ตัวเองให้ redirect ไปหน้า /profile
-  if (session?.user?.id === params.id) {
+  if (session?.user?.id === id) {
     redirect('/profile');
   }
 
-  const profile = await getUserPublicProfile(params.id);
+  const profile = await getUserPublicProfile(id);
   if (!profile) notFound();
 
-  const posts = await getUserPosts(params.id);
+  const posts = await getUserPosts(id);
 
   // เช็คว่า user ปัจจุบัน follow คนนี้อยู่ไหม
   let initialIsFollowing = false;
@@ -25,7 +26,7 @@ export default async function PublicProfilePage({ params }: { params: { id: stri
       where: {
         followerId_followingId: {
           followerId: session.user.id,
-          followingId: params.id,
+          followingId: id,
         },
       },
     });
