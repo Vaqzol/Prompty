@@ -5,6 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import {
   Code2,
+  Sparkles,
   ThumbsUp,
   ClipboardCopy,
   Star,
@@ -12,16 +13,20 @@ import {
   ArrowBigDown,
   MessageSquare,
   Share2,
-  Bookmark,
+  Flag,
   UserPlus,
   UserMinus,
-  Copy,
 } from 'lucide-react';
-import { toggleVote } from '@/lib/actions/post';
-import { toggleFollow } from '@/lib/actions/follow';
-import { trackCopy } from '@/lib/actions/copy';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
+import CopyBtn from '@/components/shared/CopyBtn';
+import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
+import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
+import BookmarkButton from '@/components/shared/BookmarkButton';
+import ReportModal from '@/components/feed/ReportModal';
+import ShareModal from '@/components/feed/ShareModal';
+import { toggleVote, getUserPosts } from '@/lib/actions/post';
+import { toggleFollow } from '@/lib/actions/follow';
 
 function timeAgo(date: Date | string) {
   const now = new Date();
@@ -32,7 +37,6 @@ function timeAgo(date: Date | string) {
   if (diff < 86400) return `${Math.floor(diff / 3600)} ชม. ที่แล้ว`;
   return `${Math.floor(diff / 86400)} วัน ที่แล้ว`;
 }
-
 
 interface PublicProfileData {
   id: string;
@@ -62,6 +66,7 @@ interface PostData {
   tags: string[];
   voteScore: number;
   commentCount: number;
+  copyCount?: number;
   createdAt: Date | string;
   author: {
     id: string;
@@ -70,6 +75,122 @@ interface PostData {
     image: string | null;
     handle: string | null;
   };
+  votes?: { userId: string; type: string }[];
+  bookmarks?: { userId: string }[];
+}
+
+function PublicPostCard({ post, currentUserId }: { post: PostData; currentUserId?: string }) {
+  const [voteScore, setVoteScore] = useState(post.voteScore);
+  const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(() => {
+    if (!currentUserId || !post.votes) return null;
+    const vote = post.votes.find((v) => v.userId === currentUserId);
+    return (vote?.type as 'UP' | 'DOWN') || null;
+  });
+
+  const isBookmarked = currentUserId && post.bookmarks ? post.bookmarks.some((b) => b.userId === currentUserId) : false;
+
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+
+  const handleVote = async (type: 'UP' | 'DOWN') => {
+    if (!currentUserId) return;
+    if (userVote === type) {
+      setUserVote(null);
+      setVoteScore((prev) => (type === 'UP' ? prev - 1 : prev + 1));
+    } else {
+      const diff = userVote ? 2 : 1;
+      setUserVote(type);
+      setVoteScore((prev) => (type === 'UP' ? prev + diff : prev - diff));
+    }
+    await toggleVote(post.id, type);
+  };
+
+  return (
+    <div className="post-card">
+      <div className="post-header">
+        <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`}>
+          {post.type === 'CODE' ? <><Code2 size={12} /> Code Snippet</> : <><Sparkles size={12} /> AI Prompt</>}
+        </span>
+      </div>
+
+      <div className="post-time" style={{ marginBottom: '8px' }}>{timeAgo(post.createdAt)}</div>
+
+      <Link href={`/post/${post.id}`} style={{ textDecoration: 'none' }}>
+        <h3 className="post-title">{post.title}</h3>
+      </Link>
+      {post.description && <p className="post-description">{post.description}</p>}
+
+      {post.tags.length > 0 && (
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
+          {post.tags.map((tag) => (
+            <Link key={tag} href={`/tags/${encodeURIComponent(tag)}`} style={{ textDecoration: 'none' }}>
+              <span className="post-tag">#{tag}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {post.type === 'CODE' && post.content && (
+        <div className="post-code-block">
+          <div className="post-code-header">
+            <span className="post-code-lang">{post.language || 'Code'}</span>
+            <CopyBtn text={post.content} postId={post.id} />
+          </div>
+          <div className="post-code-content">
+            <pre dangerouslySetInnerHTML={{ 
+              __html: hljs.highlightAuto(
+                post.content.length > 300 ? post.content.slice(0, 300) + '...' : post.content
+              ).value 
+            }} />
+          </div>
+        </div>
+      )}
+
+      {post.type === 'PROMPT' && post.imageUrl && (
+        <div className="post-prompt-image">
+          <img src={post.imageUrl} alt={post.title} />
+        </div>
+      )}
+
+      {post.type === 'PROMPT' && post.content && (
+        <PromptCopyBlock text={post.content} postId={post.id} />
+      )}
+
+      <div className="post-actions">
+        <div className="vote-group">
+          <button
+            className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
+            onClick={() => handleVote('UP')}
+          >
+            <ArrowBigUp size={20} />
+          </button>
+          <span className="vote-count">{voteScore}</span>
+          <button
+            className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
+            onClick={() => handleVote('DOWN')}
+          >
+            <ArrowBigDown size={20} />
+          </button>
+        </div>
+        <span className="action-spacer" />
+        <Link href={`/post/${post.id}`} className="action-btn" style={{ textDecoration: 'none' }}>
+          <MessageSquare size={18} /> {post.commentCount}
+        </Link>
+        <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
+        <span className="action-divider" />
+        <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{ color: '#ef4444' }}>
+          <Flag size={18} />
+        </button>
+        <button className="action-btn" onClick={() => setIsShareModalOpen(true)}>
+          <Share2 size={18} />
+        </button>
+        <BookmarkButton postId={post.id} initialBookmarked={isBookmarked} initialCollectionId={null} />
+      </div>
+
+      <ReportModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} postId={post.id} />
+      <ShareModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} postId={post.id} />
+    </div>
+  );
 }
 
 export default function PublicProfileClient({
@@ -83,28 +204,30 @@ export default function PublicProfileClient({
   initialIsFollowing: boolean;
   currentUserId?: string;
 }) {
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'CODE' | 'PROMPT'>('all');
+  const [posts, setPosts] = useState<PostData[]>(initialPosts);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [followerCount, setFollowerCount] = useState(profile.followerCount);
   const [loadingFollow, setLoadingFollow] = useState(false);
 
-  const filteredPosts = initialPosts.filter((post) => {
-    if (activeTab === 'all') return true;
-    return post.type === activeTab;
-  });
+  const handleTabChange = async (tab: 'all' | 'CODE' | 'PROMPT') => {
+    setActiveTab(tab);
+    const result = await getUserPosts(profile.id, tab === 'all' ? undefined : tab);
+    setPosts(result as PostData[]);
+  };
 
   const handleFollowToggle = async () => {
-    if (!currentUserId) {
-      alert('กรุณาเข้าสู่ระบบก่อน');
-      return;
-    }
+    if (!currentUserId) return;
     setLoadingFollow(true);
-    const result = await toggleFollow(profile.id);
-    if (result.success) {
-      setIsFollowing(result.isFollowing!);
-      setFollowerCount((prev) => (result.isFollowing ? prev + 1 : prev - 1));
+    try {
+      const res = await toggleFollow(profile.id);
+      if (res.success) {
+        setIsFollowing(res.isFollowing ?? false);
+        setFollowerCount((prev) => (res.isFollowing ? prev + 1 : prev - 1));
+      }
+    } finally {
+      setLoadingFollow(false);
     }
-    setLoadingFollow(false);
   };
 
   return (
@@ -123,7 +246,7 @@ export default function PublicProfileClient({
           </div>
           <h1 className="profile-name">{profile.name || 'ผู้ใช้งาน'}</h1>
           <p className="profile-handle">@{profile.handle || 'user'}</p>
-          
+
           <button
             className={`profile-follow-btn ${isFollowing ? 'following' : 'follow'}`}
             onClick={handleFollowToggle}
@@ -198,102 +321,25 @@ export default function PublicProfileClient({
       {/* Main Content */}
       <main className="profile-content">
         <div className="profile-tabs">
-          <button className={`profile-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>
+          <button className={`profile-tab ${activeTab === 'all' ? 'active' : ''}`} onClick={() => handleTabChange('all')}>
             ผลงานทั้งหมด ({profile.postCount})
           </button>
-          <button className={`profile-tab ${activeTab === 'CODE' ? 'active' : ''}`} onClick={() => setActiveTab('CODE')}>
+          <button className={`profile-tab ${activeTab === 'CODE' ? 'active' : ''}`} onClick={() => handleTabChange('CODE')}>
             Code Snippets
           </button>
-          <button className={`profile-tab ${activeTab === 'PROMPT' ? 'active' : ''}`} onClick={() => setActiveTab('PROMPT')}>
+          <button className={`profile-tab ${activeTab === 'PROMPT' ? 'active' : ''}`} onClick={() => handleTabChange('PROMPT')}>
             AI Prompts
           </button>
         </div>
 
         <div className="profile-posts">
-          {filteredPosts.length === 0 ? (
+          {posts.length === 0 ? (
             <div className="empty-state">
               <p>ยังไม่มีโพสต์</p>
             </div>
           ) : (
-            filteredPosts.map((post) => (
-              <div key={post.id} className="post-card">
-                <div className="post-header">
-                  <span className={`post-type-badge ${post.type === 'CODE' ? 'badge-code' : 'badge-prompt'}`}>
-                    {post.type === 'CODE' ? <><Code2 size={12} /> Code Snippet</> : <>✨ AI Prompt</>}
-                  </span>
-                </div>
-
-                <div className="post-time" style={{ marginBottom: '8px' }}>{timeAgo(post.createdAt)}</div>
-
-                <Link href={`/post/${post.id}`} style={{ textDecoration: 'none' }}>
-                  <h3 className="post-title">{post.title}</h3>
-                </Link>
-                {post.description && <p className="post-description">{post.description}</p>}
-
-                {post.tags.length > 0 && (
-                  <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
-                    {post.tags.map((tag) => (
-                      <span key={tag} className="post-tag">#{tag}</span>
-                    ))}
-                  </div>
-                )}
-
-                {post.type === 'CODE' && post.content && (
-                  <div className="post-code-block">
-                    <div className="post-code-header">
-                      <span className="post-code-lang">{post.language || 'Code'}</span>
-                      <button className="post-code-copy" onClick={async () => {
-                        await navigator.clipboard.writeText(post.content!);
-                        await trackCopy(post.id);
-                      }}>
-                        <Copy size={14} /> คัดลอก
-                      </button>
-                    </div>
-                    <div className="post-code-content">
-                      <pre dangerouslySetInnerHTML={{ 
-                        __html: hljs.highlightAuto(
-                          post.content.length > 300 ? post.content.slice(0, 300) + '...' : post.content
-                        ).value 
-                      }} />
-                    </div>
-                  </div>
-                )}
-
-                {post.type === 'PROMPT' && post.imageUrl && (
-                  <div className="post-prompt-image">
-                    <img src={post.imageUrl} alt={post.title} />
-                  </div>
-                )}
-
-                {post.type === 'PROMPT' && post.content && (
-                  <div className="post-prompt-text">
-                    <p>{post.content.length > 200 ? post.content.slice(0, 200) + '...' : post.content}</p>
-                  </div>
-                )}
-
-                <div className="post-actions">
-                  <div className="vote-group">
-                    <button className="vote-btn" onClick={() => toggleVote(post.id, 'UP')}><ArrowBigUp size={20} /></button>
-                    <span className="vote-count">{post.voteScore}</span>
-                    <button className="vote-btn" onClick={() => toggleVote(post.id, 'DOWN')}><ArrowBigDown size={20} /></button>
-                  </div>
-                  <span className="action-spacer" />
-                  <Link href={`/post/${post.id}`} className="action-btn" style={{ textDecoration: 'none' }}>
-                    <MessageSquare size={18} /> {post.commentCount}
-                  </Link>
-                  <button className="action-btn" onClick={async () => {
-                    if (post.content) {
-                      await navigator.clipboard.writeText(post.content);
-                      await trackCopy(post.id);
-                    }
-                  }}>
-                    <Copy size={18} />
-                  </button>
-                  <span className="action-divider" />
-                  <button className="action-btn"><Share2 size={18} /></button>
-                  <button className="action-btn"><Bookmark size={18} /></button>
-                </div>
-              </div>
+            posts.map((post) => (
+              <PublicPostCard key={post.id} post={post} currentUserId={currentUserId} />
             ))
           )}
         </div>

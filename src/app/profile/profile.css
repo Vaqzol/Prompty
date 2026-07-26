@@ -1,10 +1,11 @@
 /* ===== Profile Page Styles ===== */
-.profile-container {
+.profile-container,
+.profile-page {
   display: flex;
-  max-width: 1140px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 80px 24px 40px 24px;
-  gap: 32px;
+  gap: 24px;
   min-height: 100vh;
   background: var(--bg-secondary);
   align-items: flex-start;
@@ -206,6 +207,7 @@
 .profile-content {
   flex: 1;
   min-width: 0;
+  max-width: 680px;
 }
 
 .profile-tabs {
