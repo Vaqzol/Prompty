@@ -16,6 +16,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import PostModal from './PostModal';
 import ReportModal from './ReportModal';
@@ -77,13 +78,6 @@ function FeedFilterTabs({ active, onChange }: { active: string; onChange: (v: st
             {tab.label}
           </button>
         ))}
-      </div>
-      <div className="feed-filters-right">
-        <button className="filter-sort">
-          <span>🔥</span>
-          มาแรง
-          <ChevronDown size={14} />
-        </button>
       </div>
     </div>
   );
@@ -148,19 +142,7 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
 
       {/* Code block */}
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{ 
-              __html: hljs.highlightAuto(
-                post.content.length > 400 ? post.content.slice(0, 400) + '...' : post.content
-              ).value 
-            }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={400} />
       )}
 
       {/* Prompt image */}

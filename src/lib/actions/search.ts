@@ -11,7 +11,7 @@ export async function searchPosts(
   options?: {
     type?: 'CODE' | 'PROMPT';
     language?: string[];
-    sortBy?: 'relevance' | 'latest' | 'top';
+    sortBy?: 'latest' | 'top';
   }
 ) {
   const trimmed = query.trim();
@@ -19,7 +19,7 @@ export async function searchPosts(
 
   const type = options?.type;
   const languages = options?.language?.filter(Boolean) || [];
-  const sortBy = options?.sortBy || 'relevance';
+  const sortBy = options?.sortBy || 'latest';
 
   // 1. Find tags that partially match the query to use in hasSome
   const allPosts = await prisma.post.findMany({ select: { tags: true } });
@@ -104,24 +104,6 @@ export async function searchPosts(
   // Sort by top if requested
   if (sortBy === 'top') {
     results.sort((a, b) => b.voteScore - a.voteScore);
-  }
-
-  // For relevance, boost exact title matches
-  if (sortBy === 'relevance') {
-    const lowerQuery = trimmed.toLowerCase();
-    results.sort((a, b) => {
-      const aTitle = a.title.toLowerCase();
-      const bTitle = b.title.toLowerCase();
-      const aExact = aTitle.includes(lowerQuery) ? 1 : 0;
-      const bExact = bTitle.includes(lowerQuery) ? 1 : 0;
-      if (aExact !== bExact) return bExact - aExact;
-      // Then by tag match
-      const aTag = a.tags.some((t) => t.toLowerCase() === lowerQuery) ? 1 : 0;
-      const bTag = b.tags.some((t) => t.toLowerCase() === lowerQuery) ? 1 : 0;
-      if (aTag !== bTag) return bTag - aTag;
-      // Then by vote score
-      return b.voteScore - a.voteScore;
-    });
   }
 
   return results;

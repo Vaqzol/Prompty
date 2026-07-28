@@ -352,25 +352,12 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
             {activeTab === 'PROMPT' && (
               <>
                 <div className="modal-prompt-section">
-                  <div className="modal-prompt-model-row">
-                    <span className="modal-prompt-model-label">โมเดล AI</span>
-                    <select
-                      className="modal-prompt-model-select"
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value)}
-                    >
-                      {AI_MODELS.map((model) => (
-                        <option key={model} value={model}>{model}</option>
-                      ))}
-                    </select>
-                  </div>
-
                   <textarea
                     className="modal-prompt-textarea"
-                    placeholder="วางพรอมต์ของคุณที่นี่"
+                    placeholder="วางพรอมต์ของคุณที่นี่..."
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    rows={4}
+                    rows={5}
                   />
                 </div>
 

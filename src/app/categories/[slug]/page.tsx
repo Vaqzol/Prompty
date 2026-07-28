@@ -13,7 +13,7 @@ export default async function CategoryDetailPage({ params }: CategoryPageProps) 
   const { slug } = await params;
 
   const [categoryData, contributors] = await Promise.all([
-    getCategoryPosts(slug, 'week'),
+    getCategoryPosts(slug, 'all'),
     getTopContributors(5),
   ]);
 

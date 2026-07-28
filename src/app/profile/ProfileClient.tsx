@@ -21,6 +21,7 @@ import {
 import { deletePost, getMyPosts } from '@/lib/actions/post';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import PostModal from '@/components/feed/PostModal';
 import hljs from 'highlight.js';
@@ -134,19 +135,7 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
 
       {/* Code block preview */}
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{ 
-              __html: hljs.highlightAuto(
-                post.content.length > 300 ? post.content.slice(0, 300) + '...' : post.content
-              ).value 
-            }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={300} />
       )}
 
       {/* Prompt image preview */}

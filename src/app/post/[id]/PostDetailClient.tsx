@@ -18,6 +18,7 @@ import ShareModal from '@/components/feed/ShareModal';
 import { toggleBookmark } from '@/lib/actions/bookmark';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 
 function timeAgo(date: Date | string) {
@@ -128,15 +129,7 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
 
       {/* Code block */}
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{ __html: hljs.highlightAuto(post.content).value }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={0} />
       )}
 
       {/* Prompt content */}

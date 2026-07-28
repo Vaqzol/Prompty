@@ -76,7 +76,12 @@ export async function getTrendingPosts(
 // ─────────────────────────────────────────────
 // 2. Top Contributors Leaderboard
 // ─────────────────────────────────────────────
-export async function getTopContributors(limit: number = 5) {
+export async function getTopContributors(
+  limit: number = 5,
+  period: 'week' | 'month' | 'all' = 'week'
+) {
+  const dateFrom = getDateFromPeriod(period);
+
   const users = await prisma.user.findMany({
     select: {
       id: true,
@@ -85,6 +90,7 @@ export async function getTopContributors(limit: number = 5) {
       handle: true,
       email: true,
       posts: {
+        where: dateFrom ? { createdAt: { gte: dateFrom } } : {},
         select: {
           copyCount: true,
           votes: { select: { type: true } },
@@ -112,6 +118,120 @@ export async function getTopContributors(limit: number = 5) {
 
   scored.sort((a, b) => b.totalScore - a.totalScore);
   return scored.slice(0, limit);
+}
+
+// ─────────────────────────────────────────────
+// 2b. Full Leaderboard Page Data
+// ─────────────────────────────────────────────
+export async function getLeaderboard(
+  period: 'week' | 'month' | 'all' = 'week',
+  limit: number = 20
+) {
+  const dateFrom = getDateFromPeriod(period);
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      handle: true,
+      email: true,
+      posts: {
+        where: dateFrom ? { createdAt: { gte: dateFrom } } : {},
+        select: {
+          copyCount: true,
+          votes: { select: { type: true } },
+        },
+      },
+    },
+  });
+
+  const scored = users.map((user) => {
+    let copyCount = 0;
+    let voteScore = 0;
+
+    user.posts.forEach((p) => {
+      copyCount += p.copyCount || 0;
+      const up = p.votes.filter((v) => v.type === 'UP').length;
+      const down = p.votes.filter((v) => v.type === 'DOWN').length;
+      voteScore += up - down;
+    });
+
+    const totalScore = copyCount + voteScore;
+
+    return {
+      id: user.id,
+      name: user.name || 'ผู้ใช้งาน',
+      image: user.image,
+      handle: user.handle || user.email?.split('@')[0] || 'user',
+      copyCount,
+      voteScore,
+      totalScore,
+    };
+  });
+
+  scored.sort((a, b) => b.totalScore - a.totalScore);
+
+  return scored.slice(0, limit).map((user, index) => ({
+    ...user,
+    rank: index + 1,
+  }));
+}
+
+export async function getCurrentUserRank(
+  userId: string,
+  period: 'week' | 'month' | 'all' = 'week'
+) {
+  const dateFrom = getDateFromPeriod(period);
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      image: true,
+      handle: true,
+      email: true,
+      posts: {
+        where: dateFrom ? { createdAt: { gte: dateFrom } } : {},
+        select: {
+          copyCount: true,
+          votes: { select: { type: true } },
+        },
+      },
+    },
+  });
+
+  const scored = users.map((user) => {
+    let copyCount = 0;
+    let voteScore = 0;
+
+    user.posts.forEach((p) => {
+      copyCount += p.copyCount || 0;
+      const up = p.votes.filter((v) => v.type === 'UP').length;
+      const down = p.votes.filter((v) => v.type === 'DOWN').length;
+      voteScore += up - down;
+    });
+
+    return {
+      id: user.id,
+      name: user.name || 'ผู้ใช้งาน',
+      image: user.image,
+      handle: user.handle || user.email?.split('@')[0] || 'user',
+      copyCount,
+      voteScore,
+      totalScore: copyCount + voteScore,
+    };
+  });
+
+  scored.sort((a, b) => b.totalScore - a.totalScore);
+
+  const userIndex = scored.findIndex((u) => u.id === userId);
+  if (userIndex === -1) return null;
+
+  return {
+    ...scored[userIndex],
+    rank: userIndex + 1,
+  };
 }
 
 // ─────────────────────────────────────────────

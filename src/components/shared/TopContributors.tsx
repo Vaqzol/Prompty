@@ -23,7 +23,7 @@ export default function TopContributors({ contributors }: TopContributorsProps) 
           <Trophy size={20} className="trophy-icon" style={{ color: '#f59e0b' }} />
           <span>ผู้มีส่วนร่วมสูงสุด</span>
         </div>
-        <p className="top-contributors-subtitle">ผู้ที่ได้รับคะแนนสูงสุดในสัปดาห์นี้</p>
+        <p className="top-contributors-subtitle">ผู้ที่ได้รับคะแนนสูงสุด</p>
       </div>
 
       <div className="top-contributors-list">
@@ -68,7 +68,7 @@ export default function TopContributors({ contributors }: TopContributorsProps) 
       </div>
 
       <div className="top-contributors-footer">
-        <Link href="/trending" className="view-all-link">
+        <Link href="/leaderboard" className="view-all-link">
           ดูอันดับทั้งหมด
         </Link>
       </div>

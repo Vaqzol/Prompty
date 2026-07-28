@@ -19,6 +19,7 @@ import {
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import BookmarkButton from '@/components/shared/BookmarkButton';
@@ -92,7 +93,6 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
 ];
 
 const SORT_OPTIONS = [
-  { key: 'relevance', label: 'Relevance' },
   { key: 'latest', label: 'ล่าสุด' },
   { key: 'top', label: 'คะแนนสูงสุด' },
 ];
@@ -175,19 +175,7 @@ function SearchPostCard({ post, currentUserId }: { post: PostData; currentUserId
 
       {/* Code block */}
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{
-              __html: hljs.highlightAuto(
-                post.content.length > 400 ? post.content.slice(0, 400) + '...' : post.content
-              ).value
-            }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={400} />
       )}
 
       {/* Prompt image */}
@@ -325,7 +313,7 @@ export default function SearchClient({
   currentUserId,
 }: SearchClientProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('all');
-  const [sortBy, setSortBy] = useState('relevance');
+  const [sortBy, setSortBy] = useState('latest');
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [posts, setPosts] = useState<PostData[]>(initialPosts);
@@ -361,7 +349,7 @@ export default function SearchClient({
     const result = await searchPosts(query, {
       type,
       language: selectedLanguages.length > 0 ? selectedLanguages : undefined,
-      sortBy: newSort as 'relevance' | 'latest' | 'top',
+      sortBy: newSort as 'latest' | 'top',
     });
     setPosts(result);
     setIsFiltering(false);
@@ -379,7 +367,7 @@ export default function SearchClient({
 
   const getTabCount = (key: TabKey) => {
     switch (key) {
-      case 'all': return initialPosts.length;
+      case 'all': return initialPosts.length + initialUsers.length + initialTags.length;
       case 'code': return codePosts;
       case 'prompt': return promptPosts;
       case 'users': return initialUsers.length;
@@ -486,8 +474,55 @@ export default function SearchClient({
 
         {/* Results */}
         <div className={`search-results ${isFiltering ? 'filtering' : ''}`}>
-          {/* Post results */}
-          {(activeTab === 'all' || activeTab === 'code' || activeTab === 'prompt') && (
+          {/* All tab — Combined results */}
+          {activeTab === 'all' && (
+            <>
+              {displayPosts.length === 0 && initialUsers.length === 0 && initialTags.length === 0 ? (
+                <div className="search-no-results">
+                  <p>ไม่พบผลลัพธ์ที่ตรงกัน</p>
+                </div>
+              ) : (
+                <>
+                  {displayPosts.map((post) => (
+                    <SearchPostCard key={post.id} post={post} currentUserId={currentUserId} />
+                  ))}
+
+                  {initialUsers.length > 0 && (
+                    <div style={{ marginTop: displayPosts.length > 0 ? '24px' : '0' }}>
+                      {displayPosts.length > 0 && (
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
+                          ผู้ใช้ ({initialUsers.length})
+                        </h3>
+                      )}
+                      <div className="search-users-grid">
+                        {initialUsers.map((user) => (
+                          <UserCard key={user.id} user={user} currentUserId={currentUserId} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {initialTags.length > 0 && (
+                    <div style={{ marginTop: (displayPosts.length > 0 || initialUsers.length > 0) ? '24px' : '0' }}>
+                      {(displayPosts.length > 0 || initialUsers.length > 0) && (
+                        <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
+                          แท็ก ({initialTags.length})
+                        </h3>
+                      )}
+                      <div className="search-tags-grid">
+                        {initialTags.map((tag) => (
+                          <TagCard key={tag.name} tag={tag} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {/* Code & Prompt tabs */}
+          {(activeTab === 'code' || activeTab === 'prompt') && (
             <>
               {displayPosts.length === 0 ? (
                 <div className="search-no-results">

@@ -20,6 +20,7 @@ import {
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import BookmarkButton from '@/components/shared/BookmarkButton';
@@ -131,19 +132,7 @@ function PublicPostCard({ post, currentUserId }: { post: PostData; currentUserId
       )}
 
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{ 
-              __html: hljs.highlightAuto(
-                post.content.length > 300 ? post.content.slice(0, 300) + '...' : post.content
-              ).value 
-            }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={300} />
       )}
 
       {post.type === 'PROMPT' && post.imageUrl && (

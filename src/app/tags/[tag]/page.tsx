@@ -13,7 +13,7 @@ export default async function TagDetailPage({ params }: TagPageProps) {
   const decodedTag = decodeURIComponent(tag);
 
   const [posts, contributors] = await Promise.all([
-    getPostsByTag(decodedTag, 'week'),
+    getPostsByTag(decodedTag, 'all'),
     getTopContributors(5),
   ]);
 

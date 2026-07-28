@@ -13,6 +13,7 @@ import { toggleVote } from '@/lib/actions/post';
 import { toggleBookmark, createCollection, renameCollection, deleteCollection, moveToCollection } from '@/lib/actions/bookmark';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
+import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
 import ReportModal from '@/components/feed/ReportModal';
 import ShareModal from '@/components/feed/ShareModal';
@@ -393,15 +394,7 @@ function SavedPostCard({
       )}
 
       {post.type === 'CODE' && post.content && (
-        <div className="post-code-block">
-          <div className="post-code-header">
-            <span className="post-code-lang">{post.language || 'Code'}</span>
-            <CopyBtn text={post.content} postId={post.id} />
-          </div>
-          <div className="post-code-content">
-            <pre dangerouslySetInnerHTML={{ __html: hljs.highlightAuto(post.content.length > 400 ? post.content.slice(0, 400) + '...' : post.content).value }} />
-          </div>
-        </div>
+        <CodeCopyBlock content={post.content} language={post.language} postId={post.id} maxLength={400} />
       )}
 
       {post.type === 'PROMPT' && post.imageUrl && (

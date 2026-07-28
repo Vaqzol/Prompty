@@ -4,16 +4,25 @@ import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { trackCopy } from '@/lib/actions/copy';
 
-export default function CopyBtn({ text, postId }: { text: string, postId: string }) {
+interface CopyBtnProps {
+  text: string;
+  postId: string;
+  onCopyStart?: () => void;
+}
+
+export default function CopyBtn({ text, postId, onCopyStart }: CopyBtnProps) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
     try {
+      onCopyStart?.();
       await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       await trackCopy(postId);
-    } catch { /* fallback */ }
+    } catch {
+      /* fallback */
+    }
   };
 
   return (

@@ -6,7 +6,7 @@ import { getTrendingPosts, getTopContributors } from '@/lib/actions/trending';
 export default async function TrendingPage() {
   const session = await auth();
   const [posts, contributors] = await Promise.all([
-    getTrendingPosts('week'),
+    getTrendingPosts('all'),
     getTopContributors(5),
   ]);
 
