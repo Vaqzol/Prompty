@@ -38,7 +38,7 @@
 .period-pills-container {
   display: inline-flex;
   align-items: center;
-  background: #e5e7eb;
+  background: var(--bg-hover);
   padding: 4px;
   border-radius: 9999px;
   position: relative;
@@ -51,7 +51,7 @@
   left: 4px;
   bottom: 4px;
   width: calc((100% - 8px) / 3);
-  background: #111827;
+  background: var(--brand-primary);
   border-radius: 9999px;
   transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
@@ -84,7 +84,7 @@
 
 /* Table Card Container */
 .leaderboard-table-card {
-  background: var(--bg-primary);
+  background: var(--bg-card);
   border: 1px solid var(--border-default);
   border-radius: 20px;
   box-shadow: var(--shadow-card);
@@ -116,14 +116,14 @@
   font-weight: 700;
   color: var(--text-muted);
   border-bottom: 1px solid var(--border-default);
-  background: #f9fafb;
+  background: var(--bg-hover);
 }
 
 .leaderboard-table td {
   padding: 16px 20px;
   font-size: 14px;
   vertical-align: middle;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--border-default);
 }
 
 /* Rows styling */
@@ -145,7 +145,7 @@
 }
 
 .leaderboard-row:hover {
-  background: #f9fafb;
+  background: var(--bg-hover);
 }
 
 .leaderboard-row.rank-top-1 {
@@ -154,6 +154,14 @@
 
 .leaderboard-row.rank-top-1:hover {
   background: #fef3c7;
+}
+
+[data-theme="dark"] .leaderboard-row.rank-top-1 {
+  background: rgba(245, 158, 11, 0.12);
+}
+
+[data-theme="dark"] .leaderboard-row.rank-top-1:hover {
+  background: rgba(245, 158, 11, 0.2);
 }
 
 /* Rank column */
@@ -337,6 +345,41 @@
   background: #1d4ed8;
   color: #ffffff;
   border-color: #1d4ed8;
+}
+
+/* Dark Theme Overrides */
+[data-theme="dark"] .col-total {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .current-user-row-container {
+  background: #172554;
+  border-top-color: #1e40af;
+}
+
+[data-theme="dark"] .current-user-rank-badge {
+  background: #1e3a8a;
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .current-user-score-label {
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .current-user-score-val {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .btn-view-my-profile {
+  background: #1e293b;
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .btn-view-my-profile:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
 }
 
 /* Load More Button Container */

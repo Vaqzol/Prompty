@@ -142,6 +142,15 @@
   background: #fef3c7;
 }
 
+[data-theme="dark"] .contributor-item.top-1 {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .contributor-item.top-1:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
 .contributor-rank {
   font-size: 16px;
   font-weight: 700;

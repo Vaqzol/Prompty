@@ -18,14 +18,16 @@ import {
   Bookmark,
   Flag,
 } from 'lucide-react';
-import { deletePost, getMyPosts } from '@/lib/actions/post';
+import { deletePost, getMyPosts, toggleVote } from '@/lib/actions/post';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
 import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';
+import BookmarkButton from '@/components/shared/BookmarkButton';
+import ReportModal from '@/components/feed/ReportModal';
+import ShareModal from '@/components/feed/ShareModal';
 import PostModal from '@/components/feed/PostModal';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 
 function timeAgo(date: Date | string) {
   const now = new Date();
@@ -71,12 +73,40 @@ interface PostData {
     image: string | null;
     handle: string | null;
   };
+  votes?: { userId: string; type: string }[];
+  bookmarks?: { userId: string }[];
 }
 
-/* ===== Post Card with Menu ===== */
-function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: () => void; onDelete: () => void }) {
+/* ===== Post Card with Menu & Actions ===== */
+function ProfilePostCard({
+  post,
+  onEdit,
+  onDelete,
+  currentUserId,
+}: {
+  post: PostData;
+  onEdit: () => void;
+  onDelete: () => void;
+  currentUserId: string;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const initialUserVote = (() => {
+    if (!currentUserId || !post.votes) return null;
+    const vote = post.votes.find((v) => v.userId === currentUserId);
+    return (vote?.type as 'UP' | 'DOWN') || null;
+  })();
+
+  const [voteScore, setVoteScore] = useState(post.voteScore);
+  const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(initialUserVote);
+
+  const isBookmarked =
+    currentUserId && post.bookmarks
+      ? post.bookmarks.some((b) => b.userId === currentUserId)
+      : false;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -87,6 +117,33 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleVote = async (type: 'UP' | 'DOWN') => {
+    if (!currentUserId) return;
+    const prevVote = userVote;
+    const prevScore = voteScore;
+
+    let newScore = voteScore;
+    let newVote: 'UP' | 'DOWN' | null = type;
+
+    if (prevVote === type) {
+      newVote = null;
+      newScore += type === 'UP' ? -1 : 1;
+    } else if (prevVote) {
+      newScore += type === 'UP' ? 2 : -2;
+    } else {
+      newScore += type === 'UP' ? 1 : -1;
+    }
+
+    setUserVote(newVote);
+    setVoteScore(newScore);
+
+    const result = await toggleVote(post.id, type);
+    if (!result.success) {
+      setUserVote(prevVote);
+      setVoteScore(prevScore);
+    }
+  };
 
   return (
     <div className="post-card">
@@ -126,9 +183,11 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
       {post.description && <p className="post-description">{post.description}</p>}
 
       {post.tags.length > 0 && (
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
           {post.tags.map((tag) => (
-            <span key={tag} className="post-tag">#{tag}</span>
+            <Link key={tag} href={`/tags/${encodeURIComponent(tag)}`} style={{ textDecoration: 'none' }}>
+              <span className="post-tag">#{tag}</span>
+            </Link>
           ))}
         </div>
       )}
@@ -153,17 +212,50 @@ function ProfilePostCard({ post, onEdit, onDelete }: { post: PostData; onEdit: (
       {/* Actions */}
       <div className="post-actions">
         <div className="vote-group">
-          <button className="vote-btn"><ArrowBigUp size={20} /></button>
-          <span className="vote-count">{post.voteScore}</span>
-          <button className="vote-btn"><ArrowBigDown size={20} /></button>
+          <button
+            className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
+            onClick={() => handleVote('UP')}
+          >
+            <ArrowBigUp size={20} />
+          </button>
+          <span className="vote-count">{voteScore}</span>
+          <button
+            className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
+            onClick={() => handleVote('DOWN')}
+          >
+            <ArrowBigDown size={20} />
+          </button>
         </div>
-        <button className="action-btn"><MessageSquare size={18} /> {post.commentCount}</button>
+
+        <Link href={`/post/${post.id}`} className="action-btn" style={{ textDecoration: 'none' }}>
+          <MessageSquare size={18} /> {post.commentCount}
+        </Link>
+
         <ActionCopyBtn text={post.content || ''} postId={post.id} initialCount={post.copyCount || 0} />
+        
         <span className="action-divider" />
-        <button className="action-btn" style={{color: '#ef4444'}}><Flag size={18} /></button>
-        <button className="action-btn"><Share2 size={18} /></button>
-        <button className="action-btn"><Bookmark size={18} /></button>
+        
+        <button className="action-btn" onClick={() => setIsReportModalOpen(true)} style={{ color: '#ef4444' }}>
+          <Flag size={18} />
+        </button>
+        <button className="action-btn" onClick={() => setIsShareModalOpen(true)}>
+          <Share2 size={18} />
+        </button>
+
+        <BookmarkButton postId={post.id} initialBookmarked={isBookmarked} />
       </div>
+
+      {/* Modals */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        postId={post.id}
+      />
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        postId={post.id}
+      />
     </div>
   );
 }
@@ -273,6 +365,7 @@ export default function ProfileClient({ profile, initialPosts }: { profile: Prof
               post={post}
               onEdit={() => setEditingPost(post)}
               onDelete={() => handleDelete(post.id)}
+              currentUserId={profile.id}
             />
           ))
         )}

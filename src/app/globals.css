@@ -48,7 +48,47 @@
   --radius-full: 9999px;
 
   --font-sans: var(--font-inter), var(--font-ibm-plex-sans-thai), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* ===== Design Tokens (Dark Theme Override — Prompty) ===== */
+[data-theme="dark"] {
+  --bg-primary: #12121e;
+  --bg-secondary: #0d0d18;
+  --bg-card: #1a1a2b;
+  --bg-input: #232338;
+  --bg-sidebar: #161626;
+  --bg-topbar: #0d0d18;
+  --bg-code: #0d1117;
+  --bg-hover: #232338;
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-on-dark: #ffffff;
+  --text-link: #60a5fa;
+
+  --brand-primary: #3b82f6;
+  --brand-hover: #2563eb;
+  --brand-light: #1e3a8a;
+  --brand-muted: #1e293b;
+
+  --border-default: #2a2d3d;
+  --border-input: #374151;
+  --border-focus: #3b82f6;
+
+  --success: #22c55e;
+  --success-light: #064e3b;
+  --error: #ef4444;
+  --error-light: #450a0a;
+  --warning: #f59e0b;
+
+  --upvote: #60a5fa;
+  --downvote: #64748b;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-input-focus: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
 @theme inline {
@@ -3798,6 +3838,15 @@ a {
 
 .contributor-item.top-1:hover {
   background: #fef3c7;
+}
+
+[data-theme="dark"] .contributor-item.top-1 {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .contributor-item.top-1:hover {
+  background: rgba(245, 158, 11, 0.2);
 }
 
 .contributor-rank {

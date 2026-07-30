@@ -13,7 +13,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
 import CodeCopyBlock from '@/components/shared/CodeCopyBlock';

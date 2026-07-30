@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { Monitor, Moon, Sun, Check } from 'lucide-react';
 import { updatePreferences } from '@/lib/actions/user';
+import { useTheme } from '@/components/providers/ThemeProvider';
+import { useCodeTheme } from '@/components/providers/CodeThemeProvider';
+import hljs from 'highlight.js';
 
 const THEMES = [
   { value: 'light', label: 'สว่าง', icon: Sun },
@@ -14,7 +17,6 @@ const CODE_THEMES = [
   'VS Code Dark Modern',
   'GitHub Dark',
   'Monokai',
-  'Dracula',
   'One Dark Pro',
   'Night Owl',
 ];
@@ -33,15 +35,30 @@ interface SettingsData {
 }
 
 export default function AppearanceSettings({ settings }: { settings: SettingsData }) {
+  const { setTheme: applyTheme } = useTheme();
+  const { setCodeTheme: applyCodeTheme } = useCodeTheme();
+
   const [theme, setTheme] = useState(settings.theme || 'system');
   const [codeTheme, setCodeTheme] = useState(settings.codeTheme || 'VS Code Dark Modern');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
 
+  const handleSelectTheme = (newTheme: string) => {
+    setTheme(newTheme);
+    applyTheme(newTheme as 'light' | 'dark' | 'system');
+  };
+
+  const handleSelectCodeTheme = (newCodeTheme: string) => {
+    setCodeTheme(newCodeTheme);
+    applyCodeTheme(newCodeTheme);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSuccess('');
     await updatePreferences({ theme, codeTheme });
+    applyTheme(theme as 'light' | 'dark' | 'system');
+    applyCodeTheme(codeTheme);
     setSuccess('บันทึกการตั้งค่าสำเร็จ!');
     setTimeout(() => setSuccess(''), 3000);
     setSaving(false);
@@ -61,7 +78,7 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
             <button
               key={t.value}
               className={`theme-option ${theme === t.value ? 'active' : ''}`}
-              onClick={() => setTheme(t.value)}
+              onClick={() => handleSelectTheme(t.value)}
             >
               <div className="theme-preview">
                 <div className={`theme-preview-screen ${t.value}`}>
@@ -87,7 +104,7 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
       <select
         className="settings-select"
         value={codeTheme}
-        onChange={(e) => setCodeTheme(e.target.value)}
+        onChange={(e) => handleSelectCodeTheme(e.target.value)}
       >
         {CODE_THEMES.map((ct) => (
           <option key={ct} value={ct}>{ct}</option>
@@ -105,7 +122,7 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
           <span className="code-filename">preview.js</span>
         </div>
         <pre className="code-theme-preview-body">
-          <code>{PREVIEW_CODE}</code>
+          <code dangerouslySetInnerHTML={{ __html: hljs.highlightAuto(PREVIEW_CODE).value }} />
         </pre>
       </div>
 

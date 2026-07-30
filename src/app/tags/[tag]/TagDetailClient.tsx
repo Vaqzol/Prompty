@@ -13,7 +13,6 @@ import {
   Share2,
 } from 'lucide-react';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import CopyBtn from '@/components/shared/CopyBtn';
 import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
 import PromptCopyBlock from '@/components/shared/PromptCopyBlock';

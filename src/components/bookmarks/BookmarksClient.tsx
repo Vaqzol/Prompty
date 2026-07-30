@@ -8,7 +8,6 @@ import {
   Trash2, FolderOpen, FolderInput, X,
 } from 'lucide-react';
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import { toggleVote } from '@/lib/actions/post';
 import { toggleBookmark, createCollection, renameCollection, deleteCollection, moveToCollection } from '@/lib/actions/bookmark';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';

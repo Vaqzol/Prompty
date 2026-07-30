@@ -1,41 +1,85 @@
-import type { Metadata } from "next";
-import { Inter, IBM_Plex_Sans_Thai } from "next/font/google";
-import "./globals.css";
-import "highlight.js/styles/vs2015.css";
+import type { Metadata } from 'next';
+import { Inter, IBM_Plex_Sans_Thai } from 'next/font/google';
+import './globals.css';
+import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
+import ThemeProvider from '@/components/providers/ThemeProvider';
+import CodeThemeProvider from '@/components/providers/CodeThemeProvider';
 
 const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-inter",
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter',
 });
 
 const ibmPlexSansThai = IBM_Plex_Sans_Thai({
-  weight: ["300", "400", "500", "600", "700"],
-  subsets: ["thai"],
-  display: "swap",
-  variable: "--font-ibm-plex-sans-thai",
+  weight: ['300', '400', '500', '600', '700'],
+  subsets: ['thai'],
+  display: 'swap',
+  variable: '--font-ibm-plex-sans-thai',
 });
 
 export const metadata: Metadata = {
   title: {
-    default: "Prompty — Developer & Creator Prompt Hub",
-    template: "%s | Prompty",
+    default: 'Prompty — Developer & Creator Prompt Hub',
+    template: '%s | Prompty',
   },
-  description: "แพลตฟอร์มแบ่งปัน Prompt และ Code Snippet สำหรับ Developer และ Creator",
+  description: 'แพลตฟอร์มแบ่งปัน Prompt และ Code Snippet สำหรับ Developer และ Creator',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
   modal,
 }: Readonly<{
   children: React.ReactNode;
   modal: React.ReactNode;
 }>) {
+  const session = await auth();
+  let userTheme = 'system';
+  let userCodeTheme = 'VS Code Dark Modern';
+
+  if (session?.user?.id) {
+    try {
+      const prefs = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { theme: true, codeTheme: true },
+      });
+      if (prefs) {
+        userTheme = prefs.theme || 'system';
+        userCodeTheme = prefs.codeTheme || 'VS Code Dark Modern';
+      }
+    } catch {
+      /* fallback */
+    }
+  }
+
   return (
     <html lang="th" className={`${inter.variable} ${ibmPlexSansThai.variable}`} data-scroll-behavior="smooth">
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var t = localStorage.getItem('prompty-theme') || '${userTheme}';
+                  var resolved = t;
+                  if (t === 'system') {
+                    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                  }
+                  document.documentElement.setAttribute('data-theme', resolved);
+                } catch(e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body>
-        {children}
-        {modal}
+        <ThemeProvider initialTheme={userTheme}>
+          <CodeThemeProvider initialCodeTheme={userCodeTheme}>
+            {children}
+            {modal}
+          </CodeThemeProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
