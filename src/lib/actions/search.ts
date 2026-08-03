@@ -159,19 +159,29 @@ export async function searchUsers(query: string) {
 // 3. ค้นหาแท็ก
 // ─────────────────────────────────────────────
 export async function searchTags(query: string) {
-  const trimmed = query.trim();
+  const trimmed = query.trim().replace(/^#/, '');
   if (!trimmed) return [];
 
-  // Get all posts and extract unique tags that match
-  const posts = await prisma.post.findMany({
-    select: { tags: true },
-  });
+  const [posts, hiddenTags] = await Promise.all([
+    prisma.post.findMany({
+      select: { tags: true },
+    }),
+    prisma.tag.findMany({
+      where: { status: 'HIDDEN' },
+      select: { name: true },
+    }),
+  ]);
+
+  const hiddenSet = new Set(hiddenTags.map((t) => t.name.toLowerCase()));
 
   // Count occurrences of each tag
   const tagCounts: Record<string, number> = {};
   for (const post of posts) {
     for (const tag of post.tags) {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+      const clean = tag.trim().replace(/^#/, '');
+      if (clean && !hiddenSet.has(clean.toLowerCase())) {
+        tagCounts[clean] = (tagCounts[clean] || 0) + 1;
+      }
     }
   }
 
@@ -179,7 +189,7 @@ export async function searchTags(query: string) {
   const lowerQuery = trimmed.toLowerCase();
   const matchingTags = Object.entries(tagCounts)
     .filter(([tag]) => tag.toLowerCase().includes(lowerQuery))
-    .map(([name, count]) => ({ name, count }))
+    .map(([name, count]) => ({ name: `#${name}`, count }))
     .sort((a, b) => b.count - a.count);
 
   return matchingTags;

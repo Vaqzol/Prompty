@@ -54,19 +54,33 @@ export default async function RootLayout({
   }
 
   return (
-    <html lang="th" className={`${inter.variable} ${ibmPlexSansThai.variable}`} data-scroll-behavior="smooth">
+    <html
+      lang="th"
+      className={`${inter.variable} ${ibmPlexSansThai.variable}`}
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <head>
         <script
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
                 try {
-                  var t = localStorage.getItem('prompty-theme') || '${userTheme}';
-                  var resolved = t;
-                  if (t === 'system') {
-                    resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                  var p = window.location.pathname;
+                  var isFixedTheme = p.startsWith('/admin') || ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password'].some(function(path) {
+                    return p === path || p.startsWith(path + '/');
+                  });
+                  if (isFixedTheme) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                  } else {
+                    var t = localStorage.getItem('prompty-theme') || '${userTheme}';
+                    var resolved = t;
+                    if (t === 'system') {
+                      resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                    }
+                    document.documentElement.setAttribute('data-theme', resolved);
                   }
-                  document.documentElement.setAttribute('data-theme', resolved);
                 } catch(e) {}
               })();
             `,

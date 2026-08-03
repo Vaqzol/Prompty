@@ -10,6 +10,7 @@ const publicPaths = [
   '/register/success',
   '/forgot-password',
   '/reset-password',
+  '/admin/login',
   '/logo.png',
   '/api/auth',
 ];

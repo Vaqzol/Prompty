@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, createContext, useContext } from 'react';
+import { usePathname } from 'next/navigation';
 
 type Theme = 'light' | 'dark' | 'system';
+
+const AUTH_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/admin/login'];
 
 interface ThemeContextType {
   theme: Theme;
@@ -35,8 +38,11 @@ export default function ThemeProvider({
   children: React.ReactNode;
   initialTheme?: string;
 }) {
+  const pathname = usePathname();
   const [theme, setThemeState] = useState<Theme>((initialTheme as Theme) || 'system');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+
+  const isFixedThemePage = pathname?.startsWith('/admin') || AUTH_PATHS.some((path) => pathname === path || pathname?.startsWith(path + '/'));
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
@@ -48,6 +54,12 @@ export default function ThemeProvider({
   };
 
   useEffect(() => {
+    if (isFixedThemePage) {
+      setResolvedTheme('light');
+      document.documentElement.setAttribute('data-theme', 'light');
+      return;
+    }
+
     const resolved = getResolvedTheme(theme);
     setResolvedTheme(resolved);
     document.documentElement.setAttribute('data-theme', resolved);
@@ -62,7 +74,7 @@ export default function ThemeProvider({
       mq.addEventListener('change', handler);
       return () => mq.removeEventListener('change', handler);
     }
-  }, [theme]);
+  }, [theme, pathname, isFixedThemePage]);
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>

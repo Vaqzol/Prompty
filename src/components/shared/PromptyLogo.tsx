@@ -5,11 +5,7 @@ export default function PromptyLogo({ size = 48 }: { size?: number }) {
       alt="Prompty Logo"
       width={size}
       height={size}
-      style={{
-        objectFit: 'contain',
-        display: 'inline-block',
-        mixBlendMode: 'multiply', // Blend out white background on light UI
-      }}
+      className="prompty-logo-img"
     />
   );
 }

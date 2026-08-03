@@ -91,6 +91,19 @@
   --shadow-input-focus: 0 0 0 3px rgba(59, 130, 246, 0.25);
 }
 
+/* ===== Prompty Logo Styling ===== */
+.prompty-logo-img {
+  object-fit: contain;
+  display: inline-block;
+  mix-blend-mode: multiply;
+  transition: filter 0.2s ease, mix-blend-mode 0.2s ease;
+}
+
+[data-theme="dark"] .prompty-logo-img {
+  mix-blend-mode: screen;
+  filter: invert(1) hue-rotate(180deg) brightness(1.6) contrast(1.2);
+}
+
 @theme inline {
   --color-background: var(--bg-primary);
   --color-foreground: var(--text-primary);

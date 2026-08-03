@@ -10,7 +10,26 @@ function createPrismaClient() {
   return new PrismaClient({ adapter });
 }
 
-// สร้าง Prisma Client แบบ Singleton เพื่อไม่ให้สร้างใหม่ทุก Hot Reload
-export const prisma = global.prisma ?? createPrismaClient();
+// ใช้ Proxy เพื่อให้แน่ใจว่าได้ PrismaClient instance ล่าสุดเสมอ แม้จะมีการ generate schema ใหม่ในขณะ dev
+export const prisma: PrismaClient = new Proxy({} as PrismaClient, {
+  get(target, prop) {
+    if (process.env.NODE_ENV === 'production') {
+      if (!global.prisma) global.prisma = createPrismaClient();
+      return (global.prisma as any)[prop];
+    }
 
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma;
+    if (
+      !global.prisma ||
+      (typeof prop === 'string' &&
+        !(global.prisma as any)[prop] &&
+        prop !== 'then' &&
+        prop !== 'toJSON' &&
+        prop !== 'catch' &&
+        prop !== 'toString')
+    ) {
+      global.prisma = createPrismaClient();
+    }
+    return (global.prisma as any)[prop];
+  },
+});
+

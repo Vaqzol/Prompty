@@ -238,21 +238,30 @@ export async function getCurrentUserRank(
 // 3. All Tags with Post Count
 // ─────────────────────────────────────────────
 export async function getAllTags() {
-  const posts = await prisma.post.findMany({
-    select: { tags: true },
-  });
+  const [posts, hiddenTags] = await Promise.all([
+    prisma.post.findMany({
+      select: { tags: true },
+    }),
+    prisma.tag.findMany({
+      where: { status: 'HIDDEN' },
+      select: { name: true },
+    }),
+  ]);
+
+  const hiddenSet = new Set(hiddenTags.map((t) => t.name.toLowerCase()));
 
   const tagCounts: Record<string, number> = {};
   posts.forEach((p) => {
     p.tags.forEach((t) => {
-      if (t) {
-        tagCounts[t] = (tagCounts[t] || 0) + 1;
+      const clean = t.trim().replace(/^#/, '');
+      if (clean && !hiddenSet.has(clean.toLowerCase())) {
+        tagCounts[clean] = (tagCounts[clean] || 0) + 1;
       }
     });
   });
 
   const result = Object.entries(tagCounts).map(([name, count]) => ({
-    name,
+    name: `#${name}`,
     count,
   }));
 
