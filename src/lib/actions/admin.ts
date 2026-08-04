@@ -759,3 +759,430 @@ export async function updateAdminTag(
   return { success: true, tag: updatedTag };
 }
 
+// ─────────────────────────────────────────────
+// 17. Users: สถิติผู้ใช้งานภาพรวม
+// ─────────────────────────────────────────────
+export async function getUserStats() {
+  await requireAdmin();
+
+  const now = new Date();
+
+  // วันเริ่มต้นสัปดาห์นี้ (วันจันทร์ 00:00:00)
+  const startOfWeek = new Date(now);
+  const day = startOfWeek.getDay();
+  const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+  startOfWeek.setDate(diff);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const sixtyDaysAgo = new Date();
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+  const [totalUsers, usersThisMonth, usersPrevMonth, newThisWeek, bannedCount] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      prisma.user.count({
+        where: { createdAt: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
+      }),
+      prisma.user.count({ where: { createdAt: { gte: startOfWeek } } }),
+      prisma.user.count({ where: { status: 'BANNED' } }),
+    ]);
+
+  const userGrowthNum =
+    usersPrevMonth > 0
+      ? Math.round(((usersThisMonth - usersPrevMonth) / usersPrevMonth) * 100)
+      : usersThisMonth > 0
+      ? 100
+      : 0;
+
+  const userGrowth = userGrowthNum >= 0 ? `+${userGrowthNum}%` : `${userGrowthNum}%`;
+
+  return {
+    totalUsers,
+    userGrowth,
+    newThisWeek,
+    bannedCount,
+  };
+}
+
+// ─────────────────────────────────────────────
+// 18. Users: ดึงรายการผู้ใช้พร้อม ตัวกรอง ค้นหา และ Pagination
+// ─────────────────────────────────────────────
+export async function getAdminUsers(options?: {
+  page?: number;
+  perPage?: number;
+  search?: string;
+  roleFilter?: 'ALL' | 'ADMIN' | 'USER';
+  statusFilter?: 'ALL' | 'ACTIVE' | 'BANNED';
+}) {
+  await requireAdmin();
+
+  const page = options?.page || 1;
+  const perPage = options?.perPage || 10;
+  const skip = (page - 1) * perPage;
+
+  const where: any = {};
+
+  if (options?.roleFilter && options.roleFilter !== 'ALL') {
+    where.role = options.roleFilter;
+  }
+
+  if (options?.statusFilter && options.statusFilter !== 'ALL') {
+    where.status = options.statusFilter;
+  }
+
+  if (options?.search) {
+    const q = options.search.trim().toLowerCase();
+    const cleanSearch = q.replace(/^@/, '');
+    where.OR = [
+      { name: { contains: cleanSearch, mode: 'insensitive' } },
+      { handle: { contains: cleanSearch, mode: 'insensitive' } },
+      { email: { contains: cleanSearch, mode: 'insensitive' } },
+    ];
+  }
+
+  const [users, totalCount] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      skip,
+      take: perPage,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        handle: true,
+        email: true,
+        image: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        _count: {
+          select: { posts: true, comments: true },
+        },
+      },
+    }),
+    prisma.user.count({ where }),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / perPage);
+
+  return {
+    users,
+    totalCount,
+    totalPages,
+    currentPage: page,
+  };
+}
+
+// ─────────────────────────────────────────────
+// 19. Users: อัปเดต สิทธิ์ (Role) และ สถานะ (Status)
+// ─────────────────────────────────────────────
+export async function updateUserRoleAndStatus(
+  userId: string,
+  data: {
+    role?: 'ADMIN' | 'USER';
+    status?: 'ACTIVE' | 'BANNED';
+  }
+) {
+  const session = await requireAdmin();
+  if (!session?.user?.id) {
+    return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
+  }
+
+  if (userId === session.user.id && data.role === 'USER') {
+    return { success: false, error: 'คุณไม่สามารถปลดสิทธิ์ Admin ของตัวเองได้' };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return { success: false, error: 'ไม่พบผู้ใช้ในระบบ' };
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.role && { role: data.role }),
+      ...(data.status && { status: data.status }),
+    },
+  });
+
+  revalidatePath('/admin/users');
+  return { success: true, user: updated };
+}
+
+// ─────────────────────────────────────────────
+// 20. Users: สร้างบัญชี ผู้ดูแลระบบ (Admin) ใหม่
+// ─────────────────────────────────────────────
+export async function createAdminUser(data: {
+  name: string;
+  email: string;
+  password: string;
+}) {
+  await requireAdmin();
+
+  const cleanName = data.name.trim();
+  const cleanEmail = data.email.trim().toLowerCase();
+
+  if (!cleanName || !cleanEmail || !data.password) {
+    return { success: false, error: 'กรุณากรอกข้อมูลให้ครบทุกช่อง' };
+  }
+
+  if (data.password.length < 6) {
+    return { success: false, error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email: cleanEmail },
+  });
+
+  if (existing) {
+    return { success: false, error: 'อีเมลนี้ถูกใช้งานแล้วในระบบ' };
+  }
+
+  // สร้าง handle จากชื่อ
+  let baseHandle = cleanName
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+  if (!baseHandle) baseHandle = 'admin';
+
+  let handle = baseHandle;
+  let counter = 1;
+  while (await prisma.user.findUnique({ where: { handle } })) {
+    handle = `${baseHandle}_${counter}`;
+    counter++;
+  }
+
+  const passwordHash = await bcrypt.hash(data.password, 12);
+
+  const newAdmin = await prisma.user.create({
+    data: {
+      name: cleanName,
+      email: cleanEmail,
+      handle,
+      passwordHash,
+      role: 'ADMIN',
+      status: 'ACTIVE',
+      emailVerified: new Date(),
+    },
+  });
+
+  revalidatePath('/admin/users');
+  return { success: true, user: newAdmin };
+}
+
+// ─────────────────────────────────────────────
+// 21. Users: ลบบัญชีผู้ใช้งานออกจากระบบ
+// ─────────────────────────────────────────────
+export async function deleteUserAccount(userId: string) {
+  const session = await requireAdmin();
+  if (!session?.user?.id) {
+    return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
+  }
+
+  if (userId === session.user.id) {
+    return { success: false, error: 'คุณไม่สามารถลบบัญชีตัวเองได้' };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    return { success: false, error: 'ไม่พบผู้ใช้ในระบบ' };
+  }
+
+  // ใช้ Transaction ลบข้อมูลลูกทั้งหมดตามลำดับ
+  await prisma.$transaction(async (tx) => {
+    // 1. ลบ Notification, Bookmark, Collection, Vote, Report ที่สร้างโดย User
+    await tx.notification.deleteMany({ where: { userId } });
+    await tx.bookmark.deleteMany({ where: { userId } });
+    await tx.bookmarkCollection.deleteMany({ where: { userId } });
+    await tx.vote.deleteMany({ where: { userId } });
+    await tx.report.deleteMany({ where: { userId } });
+    await tx.follow.deleteMany({
+      where: { OR: [{ followerId: userId }, { followingId: userId }] },
+    });
+
+    // 2. ลบ Comment
+    await tx.comment.deleteMany({ where: { userId } });
+
+    // ลบโพสต์ของผู้ใช้ (ใช้ authorId) (รวมถึง Reports, Comments, Votes ที่ติดกับโพสต์นั้น)
+    const userPosts = await tx.post.findMany({
+      where: { authorId: userId },
+      select: { id: true },
+    });
+    const postIds = userPosts.map((p) => p.id);
+
+    if (postIds.length > 0) {
+      await tx.report.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.vote.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.comment.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.bookmark.deleteMany({ where: { postId: { in: postIds } } });
+      await tx.post.deleteMany({ where: { authorId: userId } });
+    }
+
+    // 3. ลบ Account & Session
+    await tx.account.deleteMany({ where: { userId } });
+    await tx.session.deleteMany({ where: { userId } });
+
+    // 4. ลบ User
+    await tx.user.delete({ where: { id: userId } });
+  });
+
+  revalidatePath('/admin/users');
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────
+// 22. Settings: ดึงข้อมูลโปรไฟล์ Admin ที่ล็อกอินอยู่
+// ─────────────────────────────────────────────
+export async function getAdminProfile() {
+  const session = await requireAdmin();
+  if (!session?.user?.id) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      handle: true,
+      role: true,
+      image: true,
+    },
+  });
+
+  return user;
+}
+
+// ─────────────────────────────────────────────
+// 23. Settings: เปลี่ยนรหัสผ่าน Admin
+// ─────────────────────────────────────────────
+export async function updateAdminPassword(data: {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
+}) {
+  const session = await requireAdmin();
+  if (!session?.user?.id) {
+    return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
+  }
+
+  if (!data.currentPassword || !data.newPassword || !data.confirmPassword) {
+    return { success: false, error: 'กรุณากรอกข้อมูลรหัสผ่านให้ครบทุกช่อง' };
+  }
+
+  if (data.newPassword !== data.confirmPassword) {
+    return { success: false, error: 'รหัสผ่านใหม่และยืนยันรหัสผ่านไม่ตรงกัน' };
+  }
+
+  if (data.newPassword.length < 6) {
+    return { success: false, error: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+  });
+
+  if (!user || !user.passwordHash) {
+    return { success: false, error: 'ไม่พบผู้ใช้ในระบบ' };
+  }
+
+  const isValidCurrent = await bcrypt.compare(
+    data.currentPassword,
+    user.passwordHash
+  );
+
+  if (!isValidCurrent) {
+    return { success: false, error: 'รหัสผ่านเดิมไม่ถูกต้อง' };
+  }
+
+  const newPasswordHash = await bcrypt.hash(data.newPassword, 12);
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { passwordHash: newPasswordHash },
+  });
+
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────
+// 24. Settings: เปลี่ยนอีเมล Admin
+// ─────────────────────────────────────────────
+export async function updateAdminEmail(newEmail: string) {
+  const session = await requireAdmin();
+  if (!session?.user?.id) {
+    return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
+  }
+
+  const cleanEmail = newEmail.trim().toLowerCase();
+  if (!cleanEmail) {
+    return { success: false, error: 'กรุณากรอกอีเมล' };
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { email: cleanEmail },
+  });
+
+  if (existing && existing.id !== session.user.id) {
+    return { success: false, error: 'อีเมลนี้ถูกใช้งานแล้วในระบบ' };
+  }
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: { email: cleanEmail },
+  });
+
+  revalidatePath('/admin/settings');
+  return { success: true };
+}
+
+// ─────────────────────────────────────────────
+// 25. Settings: ดึงข้อมูลการตั้งค่าระบบ
+// ─────────────────────────────────────────────
+export async function getSystemSettings() {
+  await requireAdmin();
+
+  try {
+    const settings = await (prisma as any).systemSetting.findMany();
+    const map = new Map(settings.map((s: any) => [s.key, s.value]));
+
+    return {
+      maintenanceMode: map.get('maintenance_mode') === 'true',
+      autoHideReports: map.get('auto_hide_reports') !== 'false', // Default true
+    };
+  } catch (err) {
+    console.error('getSystemSettings error:', err);
+    return {
+      maintenanceMode: false,
+      autoHideReports: true,
+    };
+  }
+}
+
+// ─────────────────────────────────────────────
+// 26. Settings: อัปเดตการตั้งค่าระบบ
+// ─────────────────────────────────────────────
+export async function updateSystemSetting(key: string, value: boolean) {
+  await requireAdmin();
+
+  try {
+    await (prisma as any).systemSetting.upsert({
+      where: { key },
+      update: { value: String(value) },
+      create: { key, value: String(value) },
+    });
+  } catch (err) {
+    console.error('updateSystemSetting error:', err);
+  }
+
+  revalidatePath('/admin/settings');
+  return { success: true };
+}
+
+
+

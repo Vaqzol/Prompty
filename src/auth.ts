@@ -41,6 +41,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new CustomAuthError('กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ');
         }
 
+        if (user.status === 'BANNED') {
+          throw new CustomAuthError('บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+        }
+
         const isValidPassword = await bcrypt.compare(
           credentials.password as string,
           user.passwordHash

@@ -190,6 +190,10 @@ export async function authenticate(data: { email: string; password: string }) {
     return { error: 'กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ' };
   }
 
+  if (user.status === 'BANNED') {
+    return { error: 'บัญชีของคุณถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ' };
+  }
+
   const isValidPassword = await bcrypt.compare(
     data.password,
     user.passwordHash

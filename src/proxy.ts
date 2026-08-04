@@ -17,18 +17,47 @@ const publicPaths = [
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const session = await auth();
+  const userRole = (session?.user as any)?.role;
 
-  // ถ้าเป็น public path → ผ่านได้เลย
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  // ── 1. Admin Routes (/admin/*) ──
+  if (pathname.startsWith('/admin')) {
+    if (pathname === '/admin/login') {
+      // ถ้าล็อกอินเป็น Admin อยู่แล้ว ให้ส่งไปหน้า /admin ทันที
+      if (session && userRole === 'ADMIN') {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      }
+      return NextResponse.next();
+    }
+
+    // ต้องล็อกอินและเป็น ADMIN เท่านั้น
+    if (!session) {
+      return NextResponse.redirect(new URL('/admin/login', request.url));
+    }
+
+    if (userRole !== 'ADMIN') {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
     return NextResponse.next();
   }
 
-  // ตรวจสอบ Session ด้วย NextAuth
-  const session = await auth();
+  // ── 2. User Routes (Non-admin) ──
+  // ถ้าเป็น public path → ผ่านได้เลย
+  if (publicPaths.some((path) => pathname.startsWith(path))) {
+    // ถ้าผู้ใช้อยู่หน้า /login หรือ /register แต่ล็อกอินอยู่แล้ว
+    if (session && (pathname === '/login' || pathname === '/register')) {
+      if (userRole === 'ADMIN') {
+        return NextResponse.redirect(new URL('/admin', request.url));
+      }
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+    return NextResponse.next();
+  }
 
+  // ต้องล็อกอินก่อนเข้าถึงหน้าสำหรับ User
   if (!session) {
-    const loginUrl = new URL('/login', request.url);
-    return NextResponse.redirect(loginUrl);
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return NextResponse.next();

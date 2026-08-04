@@ -121,6 +121,8 @@ export async function searchUsers(query: string) {
 
   const users = await prisma.user.findMany({
     where: {
+      role: 'USER',
+      status: { not: 'BANNED' },
       OR: [
         { name: { contains: trimmed, mode: 'insensitive' } },
         { handle: { contains: trimmed, mode: 'insensitive' } },

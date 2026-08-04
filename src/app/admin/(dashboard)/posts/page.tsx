@@ -7,6 +7,7 @@ import { getAdminPosts, getDashboardStats, adminDeletePost } from '@/lib/actions
 import AdminPagination from '@/components/admin/AdminPagination';
 import AdminFilterDropdown from '@/components/admin/AdminFilterDropdown';
 import PostDetailModal from '@/components/admin/PostDetailModal';
+import ConfirmActionModal from '@/components/admin/ConfirmActionModal';
 
 export default function AdminManagePostsPage() {
   const router = useRouter();
@@ -29,6 +30,8 @@ export default function AdminManagePostsPage() {
 
   // Modal
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchPostsData = async (page = 1, filterParams = filters) => {
     setLoading(true);
@@ -70,10 +73,21 @@ export default function AdminManagePostsPage() {
     fetchPostsData(1, newFilters);
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้?')) {
-      await adminDeletePost(postId);
+  const handleDeletePost = (postId: string) => {
+    setDeleteTargetId(postId);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setDeleteLoading(true);
+    try {
+      await adminDeletePost(deleteTargetId);
+      setDeleteTargetId(null);
       fetchPostsData(currentPage, filters);
+    } catch (err) {
+      console.error('Failed to delete post:', err);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -243,6 +257,18 @@ export default function AdminManagePostsPage() {
           onDeleted={() => fetchPostsData(currentPage, filters)}
         />
       )}
+
+      {/* Delete Post Confirmation Modal */}
+      <ConfirmActionModal
+        isOpen={!!deleteTargetId}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleConfirmDelete}
+        loading={deleteLoading}
+        variant="delete"
+        title="ยืนยันการลบโพสต์?"
+        description="คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้? การกระทำนี้ไม่สามารถย้อนกลับได้ และข้อมูลจะถูกลบออกจากระบบอย่างถาวร"
+        confirmText="ลบข้อมูล"
+      />
     </div>
   );
 }

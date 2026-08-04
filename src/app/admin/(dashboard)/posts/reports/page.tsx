@@ -5,6 +5,7 @@ import { Search, Eye, Check, Trash2, AlertTriangle } from 'lucide-react';
 import { getAdminReports, adminResolveReport, adminDismissReport } from '@/lib/actions/admin';
 import AdminPagination from '@/components/admin/AdminPagination';
 import ReportDetailModal from '@/components/admin/ReportDetailModal';
+import ConfirmActionModal from '@/components/admin/ConfirmActionModal';
 
 export default function AdminReportedPostsPage() {
   const [reports, setReports] = useState<any[]>([]);
@@ -19,6 +20,9 @@ export default function AdminReportedPostsPage() {
 
   // Modal
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [dismissTargetId, setDismissTargetId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   const fetchReports = async (page = 1, currentSearch = search, currentStatus = status) => {
     setLoading(true);
@@ -54,17 +58,39 @@ export default function AdminReportedPostsPage() {
     fetchReports(page, search, status);
   };
 
-  const handleDeletePost = async (postId: string) => {
-    if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้ตามที่ได้รับรายงาน?')) {
-      await adminResolveReport(postId);
+  const handleDeletePost = (postId: string) => {
+    setDeleteTargetId(postId);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    setActionLoading(true);
+    try {
+      await adminResolveReport(deleteTargetId);
+      setDeleteTargetId(null);
       fetchReports(currentPage, search, status);
+    } catch (err) {
+      console.error('Failed to resolve report:', err);
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const handleDismiss = async (postId: string) => {
-    if (confirm('คุณแน่ใจหรือไม่ว่าต้องการละเว้นการรายงานนี้?')) {
-      await adminDismissReport(postId);
+  const handleDismiss = (postId: string) => {
+    setDismissTargetId(postId);
+  };
+
+  const handleConfirmDismiss = async () => {
+    if (!dismissTargetId) return;
+    setActionLoading(true);
+    try {
+      await adminDismissReport(dismissTargetId);
+      setDismissTargetId(null);
       fetchReports(currentPage, search, status);
+    } catch (err) {
+      console.error('Failed to dismiss report:', err);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -230,6 +256,30 @@ export default function AdminReportedPostsPage() {
           onActionComplete={() => fetchReports(currentPage, search, status)}
         />
       )}
+
+      {/* Safe / Dismiss Report Confirmation Modal (Figma Image 4) */}
+      <ConfirmActionModal
+        isOpen={!!dismissTargetId}
+        onClose={() => setDismissTargetId(null)}
+        onConfirm={handleConfirmDismiss}
+        loading={actionLoading}
+        variant="safe"
+        title="ยืนยันว่าโพสต์นี้ปลอดภัย?"
+        description="โพสต์นี้จะถูกลบออกจากรายการ 'รายงานปัญหา' แต่จะยังคงแสดงผลให้ผู้ใช้งานทั่วไปเห็นบนหน้าฟีดตามปกติ"
+        confirmText="ยืนยันความปลอดภัย"
+      />
+
+      {/* Delete Reported Post Confirmation Modal (Figma Image 5) */}
+      <ConfirmActionModal
+        isOpen={!!deleteTargetId}
+        onClose={() => setDeleteTargetId(null)}
+        onConfirm={handleConfirmDelete}
+        loading={actionLoading}
+        variant="delete"
+        title="ยืนยันการลบโพสต์?"
+        description="คุณแน่ใจหรือไม่ว่าต้องการลบโพสต์นี้? การกระทำนี้ไม่สามารถย้อนกลับได้ และข้อมูลจะถูกลบออกจากระบบอย่างถาวร"
+        confirmText="ลบข้อมูล"
+      />
     </div>
   );
 }

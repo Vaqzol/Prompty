@@ -49,6 +49,7 @@ model User {
   githubUrl     String?
   twitterUrl    String?
   role          String    @default("USER") // "USER" | "ADMIN"
+  status        String    @default("ACTIVE") // "ACTIVE" | "BANNED"
 
   // Notification preferences
   notifyComments  Boolean @default(true)
@@ -269,4 +270,14 @@ model Tag {
 
   @@index([status])
 }
+
+// ─────────────────────────────────────────────
+// SystemSetting (การตั้งค่าระบบสำหรับ Admin)
+// ─────────────────────────────────────────────
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
 

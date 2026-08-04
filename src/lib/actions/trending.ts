@@ -83,6 +83,10 @@ export async function getTopContributors(
   const dateFrom = getDateFromPeriod(period);
 
   const users = await prisma.user.findMany({
+    where: {
+      role: 'USER',
+      status: { not: 'BANNED' },
+    },
     select: {
       id: true,
       name: true,
@@ -130,6 +134,10 @@ export async function getLeaderboard(
   const dateFrom = getDateFromPeriod(period);
 
   const users = await prisma.user.findMany({
+    where: {
+      role: 'USER',
+      status: { not: 'BANNED' },
+    },
     select: {
       id: true,
       name: true,
@@ -185,6 +193,10 @@ export async function getCurrentUserRank(
   const dateFrom = getDateFromPeriod(period);
 
   const users = await prisma.user.findMany({
+    where: {
+      role: 'USER',
+      status: { not: 'BANNED' },
+    },
     select: {
       id: true,
       name: true,
