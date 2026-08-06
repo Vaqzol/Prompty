@@ -143,7 +143,7 @@ export async function getDailyPostStats() {
   }
 
   // นับจำนวนโพสต์ต่อวัน
-  posts.forEach((p) => {
+  posts.forEach((p: { createdAt: Date }) => {
     const d = new Date(p.createdAt);
     const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
     if (dateMap.has(dateStr)) {
@@ -226,8 +226,8 @@ export async function getPopularTags() {
   });
 
   const tagCounts: Record<string, number> = {};
-  posts.forEach((p) => {
-    p.tags.forEach((tag) => {
+  posts.forEach((p: { tags: string[] }) => {
+    p.tags.forEach((tag: string) => {
       const clean = tag.trim().replace(/^#/, '');
       if (clean && !hiddenSet.has(clean.toLowerCase())) {
         tagCounts[clean] = (tagCounts[clean] || 0) + 1;
@@ -541,8 +541,8 @@ export async function syncTagsFromPosts() {
   });
 
   const uniqueTags = new Set<string>();
-  posts.forEach((p) => {
-    p.tags.forEach((t) => {
+  posts.forEach((p: { tags: string[] }) => {
+    p.tags.forEach((t: string) => {
       const clean = t.trim().replace(/^#/, '');
       if (clean) uniqueTags.add(clean);
     });
@@ -581,8 +581,8 @@ export async function getTagStats() {
   });
 
   const tagCounts: Record<string, number> = {};
-  posts.forEach((p) => {
-    p.tags.forEach((tag) => {
+  posts.forEach((p: { tags: string[] }) => {
+    p.tags.forEach((tag: string) => {
       const clean = tag.trim().replace(/^#/, '');
       if (clean && !hiddenSet.has(clean.toLowerCase())) {
         tagCounts[clean] = (tagCounts[clean] || 0) + 1;
@@ -629,8 +629,8 @@ export async function getAdminTags(options?: {
   });
 
   const postCountsByTag: Record<string, number> = {};
-  posts.forEach((p) => {
-    p.tags.forEach((tag) => {
+  posts.forEach((p: { tags: string[] }) => {
+    p.tags.forEach((tag: string) => {
       const clean = tag.trim().replace(/^#/, '').toLowerCase();
       if (clean) {
         postCountsByTag[clean] = (postCountsByTag[clean] || 0) + 1;
