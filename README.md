@@ -88,10 +88,21 @@ npm run dev
 
 ---
 
-## 🔑 บัญชีสำหรับทดสอบ (Test Accounts)
+## 🔑 การเข้าใช้งานระบบ (Access URLs)
 
-- ** Admin Dashboard**: [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
-- ** User App**: [http://localhost:3000/login](http://localhost:3000/login)
+- **👑 Admin Dashboard**: [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
+- **👥 User App**: [http://localhost:3000/login](http://localhost:3000/login)
+
+---
+
+## 💡 วิธีการเปิดทดสอบแยกฝั่ง Admin และ User พร้อมกัน
+
+เนื่องจากระบบใช้ Cookie Session ในการจัดการสถานะล็อกอิน หากต้องการทดสอบใช้งานทั้งฝั่ง **Admin** และ **User** ควบคู่กันในเครื่องเดียวกัน แนะนำปฏิบัติดังนี้:
+
+1. **ฝั่ง Admin Panel**: เปิดใช้งานที่หน้าต่างเบราว์เซอร์ปกติ (เช่น Google Chrome) ➔ เข้าที่ `/admin/login`
+2. **ฝั่ง User App**: เปิดใช้งานที่ **หน้าต่างไม่ระบุตัวตน (Incognito Window: `Ctrl+Shift+N`)** หรือใช้เบราว์เซอร์คนละตัว (เช่น Microsoft Edge / Firefox) ➔ เข้าที่ `/login`
+
+> 📌 **ประโยชน์**: วิธีนี้จะช่วยให้ Cookie Session ของทั้ง 2 ฝั่งแยกจากกันอย่างสมบูรณ์ สามารถทดสอบการสลับสิทธิ์ อัปเดตข้อมูล และดูผลลัพธ์แบบ Real-time ได้โดยไม่มี Session ทับซ้อนกัน
 
 ---
 
