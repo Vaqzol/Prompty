@@ -25,11 +25,35 @@ export const useCodeTheme = () => useContext(CodeThemeContext);
 export default function CodeThemeProvider({
   children,
   initialCodeTheme = 'VS Code Dark Modern',
+  isLoggedIn = false,
 }: {
   children: React.ReactNode;
   initialCodeTheme?: string;
+  isLoggedIn?: boolean;
 }) {
-  const [codeTheme, setCodeThemeState] = useState(initialCodeTheme);
+  const [codeTheme, setCodeThemeState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      if (isLoggedIn && initialCodeTheme) {
+        localStorage.setItem('prompty-code-theme', initialCodeTheme);
+        return initialCodeTheme;
+      }
+      const saved = localStorage.getItem('prompty-code-theme');
+      if (saved && THEME_MAP[saved]) {
+        return saved;
+      }
+    }
+    return initialCodeTheme || 'VS Code Dark Modern';
+  });
+
+  useEffect(() => {
+    if (!isLoggedIn || !initialCodeTheme) return;
+    setCodeThemeState(initialCodeTheme);
+    try {
+      localStorage.setItem('prompty-code-theme', initialCodeTheme);
+    } catch {
+      /* ignore */
+    }
+  }, [initialCodeTheme, isLoggedIn]);
 
   const setCodeTheme = (t: string) => {
     setCodeThemeState(t);

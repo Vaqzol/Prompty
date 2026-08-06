@@ -47,7 +47,8 @@ export default function AccountSettings({ settings }: { settings: SettingsData }
   const handleDeleteAccount = async () => {
     setDeleting(true);
     await deleteAccount();
-    await signOut({ callbackUrl: '/login' });
+    await signOut({ redirect: false });
+    window.location.href = '/login';
   };
 
   return (

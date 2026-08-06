@@ -46,7 +46,8 @@ export default function MainNavbar({ user }: { user?: NextAuthUser | null }) {
   }, []);
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/login' });
+    await signOut({ redirect: false });
+    window.location.href = '/login';
   };
 
   return (
