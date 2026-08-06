@@ -5,15 +5,6 @@ import { usePathname } from 'next/navigation';
 
 type Theme = 'light' | 'dark' | 'system';
 
-const AUTH_PATHS = [
-  '/login',
-  '/register',
-  '/verify-email',
-  '/forgot-password',
-  '/reset-password',
-  '/admin/login',
-];
-
 interface ThemeContextType {
   theme: Theme;
   resolvedTheme: 'light' | 'dark';
@@ -21,7 +12,7 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'system',
+  theme: 'light',
   resolvedTheme: 'light',
   setTheme: () => {},
 });
@@ -43,15 +34,27 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
 export default function ThemeProvider({
   children,
   initialTheme = 'light',
+  isLoggedIn = false,
 }: {
   children: React.ReactNode;
   initialTheme?: string;
+  isLoggedIn?: boolean;
 }) {
   const pathname = usePathname();
 
-  // 1. Sync state with initialTheme or localStorage on client
+  // ตอน mount: ถ้า login อยู่ → ใช้ค่าจาก DB เป็นหลัก (ป้องกัน localStorage เก่าค้าง)
+  //             ถ้าไม่ login → ใช้ localStorage ก่อน แล้ว fallback ด้วย default
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
+      if (isLoggedIn) {
+        // เมื่อ login ให้เชื่อ DB เสมอ
+        const dbTheme = initialTheme as Theme;
+        if (dbTheme === 'light' || dbTheme === 'dark' || dbTheme === 'system') {
+          localStorage.setItem('prompty-theme', dbTheme);
+          return dbTheme;
+        }
+      }
+      // ไม่ login → ใช้ localStorage
       const saved = localStorage.getItem('prompty-theme') as Theme | null;
       if (saved && (saved === 'light' || saved === 'dark' || saved === 'system')) {
         return saved;
@@ -64,15 +67,17 @@ export default function ThemeProvider({
 
   const isFixedThemePage = pathname?.startsWith('/admin');
 
-  // Sync state if initialTheme from server updates (e.g. after login)
+  // เมื่อ user login (initialTheme หรือ isLoggedIn เปลี่ยน) → sync localStorage และ state ให้ตรง DB เสมอ
   useEffect(() => {
-    if (initialTheme && (initialTheme === 'light' || initialTheme === 'dark' || initialTheme === 'system')) {
-      const saved = typeof window !== 'undefined' ? localStorage.getItem('prompty-theme') : null;
-      if (!saved) {
-        setThemeState(initialTheme as Theme);
-      }
+    if (!isLoggedIn) return;
+    const validTheme = initialTheme as Theme;
+    if (validTheme === 'light' || validTheme === 'dark' || validTheme === 'system') {
+      setThemeState(validTheme);
+      try {
+        localStorage.setItem('prompty-theme', validTheme);
+      } catch { /* ignore */ }
     }
-  }, [initialTheme]);
+  }, [initialTheme, isLoggedIn]);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);

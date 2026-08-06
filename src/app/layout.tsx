@@ -86,7 +86,7 @@ export default async function RootLayout({
         />
       </head>
       <body>
-        <ThemeProvider initialTheme={userTheme}>
+        <ThemeProvider initialTheme={userTheme} isLoggedIn={!!session?.user?.id}>
           <CodeThemeProvider initialCodeTheme={userCodeTheme}>
             {children}
             {modal}
