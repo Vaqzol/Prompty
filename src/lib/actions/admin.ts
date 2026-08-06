@@ -188,14 +188,25 @@ export async function getRecentActivities() {
   ]);
 
   const activities = [
-    ...recentPosts.map((p) => ({
+    ...recentPosts.map((p: {
+      id: string;
+      title: string | null;
+      createdAt: Date;
+      author: { name: string | null; handle: string | null; image: string | null };
+    }) => ({
       id: `post-${p.id}`,
       type: 'POST',
       text: `@${p.author.handle || p.author.name || 'user'} สร้างโพสต์ใหม่`,
       time: p.createdAt,
       avatar: p.author.image,
     })),
-    ...recentUsers.map((u) => ({
+    ...recentUsers.map((u: {
+      id: string;
+      name: string | null;
+      handle: string | null;
+      image: string | null;
+      createdAt: Date;
+    }) => ({
       id: `user-${u.id}`,
       type: 'USER',
       text: `@${u.handle || u.name || 'user'} สมัครสมาชิก`,
