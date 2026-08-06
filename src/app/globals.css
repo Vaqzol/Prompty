@@ -34,7 +34,7 @@
   --warning: #f59e0b;
 
   --upvote: #2563eb;
-  --downvote: #8e8e93;
+  --downvote: #ef4444;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
@@ -83,7 +83,7 @@
   --warning: #f59e0b;
 
   --upvote: #60a5fa;
-  --downvote: #64748b;
+  --downvote: #f87171;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
@@ -1348,15 +1348,16 @@ a {
 
 .vote-btn:hover {
   background: var(--bg-hover);
-  color: var(--upvote);
 }
 
 .vote-btn.active-up {
   color: var(--upvote);
+  fill: currentColor;
 }
 
 .vote-btn.active-down {
   color: var(--downvote);
+  fill: currentColor;
 }
 
 .vote-count {

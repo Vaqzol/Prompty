@@ -5,7 +5,14 @@ import { usePathname } from 'next/navigation';
 
 type Theme = 'light' | 'dark' | 'system';
 
-const AUTH_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/admin/login'];
+const AUTH_PATHS = [
+  '/login',
+  '/register',
+  '/verify-email',
+  '/forgot-password',
+  '/reset-password',
+  '/admin/login',
+];
 
 interface ThemeContextType {
   theme: Theme;
@@ -24,7 +31,9 @@ export const useTheme = () => useContext(ThemeContext);
 function getResolvedTheme(theme: Theme): 'light' | 'dark' {
   if (theme === 'system') {
     if (typeof window !== 'undefined') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      return window.matchMedia('(prefers-color-scheme: dark)').matches
+        ? 'dark'
+        : 'light';
     }
     return 'light';
   }
@@ -33,16 +42,37 @@ function getResolvedTheme(theme: Theme): 'light' | 'dark' {
 
 export default function ThemeProvider({
   children,
-  initialTheme = 'system',
+  initialTheme = 'light',
 }: {
   children: React.ReactNode;
   initialTheme?: string;
 }) {
   const pathname = usePathname();
-  const [theme, setThemeState] = useState<Theme>((initialTheme as Theme) || 'system');
+
+  // 1. Sync state with initialTheme or localStorage on client
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('prompty-theme') as Theme | null;
+      if (saved && (saved === 'light' || saved === 'dark' || saved === 'system')) {
+        return saved;
+      }
+    }
+    return (initialTheme as Theme) || 'light';
+  });
+
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
-  const isFixedThemePage = pathname?.startsWith('/admin') || AUTH_PATHS.some((path) => pathname === path || pathname?.startsWith(path + '/'));
+  const isFixedThemePage = pathname?.startsWith('/admin');
+
+  // Sync state if initialTheme from server updates (e.g. after login)
+  useEffect(() => {
+    if (initialTheme && (initialTheme === 'light' || initialTheme === 'dark' || initialTheme === 'system')) {
+      const saved = typeof window !== 'undefined' ? localStorage.getItem('prompty-theme') : null;
+      if (!saved) {
+        setThemeState(initialTheme as Theme);
+      }
+    }
+  }, [initialTheme]);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);

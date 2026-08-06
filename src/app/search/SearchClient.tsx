@@ -196,14 +196,14 @@ function SearchPostCard({ post, currentUserId }: { post: PostData; currentUserId
             className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
             onClick={() => toggleVote(post.id, 'UP')}
           >
-            <ArrowBigUp size={20} />
+            <ArrowBigUp size={20} fill={userVote === 'UP' ? 'currentColor' : 'none'} />
           </button>
           <span className="vote-count">{post.voteScore}</span>
           <button
             className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
             onClick={() => toggleVote(post.id, 'DOWN')}
           >
-            <ArrowBigDown size={20} />
+            <ArrowBigDown size={20} fill={userVote === 'DOWN' ? 'currentColor' : 'none'} />
           </button>
         </div>
         <span className="action-spacer" />

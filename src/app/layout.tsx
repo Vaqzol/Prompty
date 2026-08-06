@@ -35,7 +35,7 @@ export default async function RootLayout({
   modal: React.ReactNode;
 }>) {
   const session = await auth();
-  let userTheme = 'system';
+  let userTheme = 'light';
   let userCodeTheme = 'VS Code Dark Modern';
 
   if (session?.user?.id) {
@@ -45,7 +45,7 @@ export default async function RootLayout({
         select: { theme: true, codeTheme: true },
       });
       if (prefs) {
-        userTheme = prefs.theme || 'system';
+        userTheme = prefs.theme || 'light';
         userCodeTheme = prefs.codeTheme || 'VS Code Dark Modern';
       }
     } catch {
@@ -68,9 +68,7 @@ export default async function RootLayout({
               (function() {
                 try {
                   var p = window.location.pathname;
-                  var isFixedTheme = p.startsWith('/admin') || ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password'].some(function(path) {
-                    return p === path || p.startsWith(path + '/');
-                  });
+                  var isFixedTheme = p.startsWith('/admin');
                   if (isFixedTheme) {
                     document.documentElement.setAttribute('data-theme', 'light');
                   } else {

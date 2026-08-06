@@ -59,7 +59,7 @@ model User {
   notifySecurity  Boolean @default(true)
 
   // Appearance preferences
-  theme           String  @default("system") // "light" | "dark" | "system"
+  theme           String  @default("light") // "light" | "dark" | "system"
   codeTheme       String  @default("vs-code-dark-modern")
 
   accounts      Account[]

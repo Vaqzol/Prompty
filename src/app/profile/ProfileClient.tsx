@@ -216,14 +216,14 @@ function ProfilePostCard({
             className={`vote-btn ${userVote === 'UP' ? 'active-up' : ''}`}
             onClick={() => handleVote('UP')}
           >
-            <ArrowBigUp size={20} />
+            <ArrowBigUp size={20} fill={userVote === 'UP' ? 'currentColor' : 'none'} />
           </button>
           <span className="vote-count">{voteScore}</span>
           <button
             className={`vote-btn ${userVote === 'DOWN' ? 'active-down' : ''}`}
             onClick={() => handleVote('DOWN')}
           >
-            <ArrowBigDown size={20} />
+            <ArrowBigDown size={20} fill={userVote === 'DOWN' ? 'currentColor' : 'none'} />
           </button>
         </div>
 
