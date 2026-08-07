@@ -63,7 +63,7 @@ export default function ReportModal({ isOpen, onClose, postId }: ReportModalProp
             </div>
           ) : (
             <>
-              <p style={{ marginBottom: '16px', color: '#6B7280', fontSize: '14px' }}>
+              <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '14px' }}>
                 ทำไมคุณถึงต้องการรายงานโพสต์นี้?
               </p>
 
@@ -83,7 +83,7 @@ export default function ReportModal({ isOpen, onClose, postId }: ReportModalProp
                         cursor: 'pointer'
                       }}
                     />
-                    <span style={{ color: '#E5E7EB', fontSize: '15px' }}>{reason}</span>
+                    <span style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{reason}</span>
                   </label>
                 ))}
               </div>
@@ -98,7 +98,7 @@ export default function ReportModal({ isOpen, onClose, postId }: ReportModalProp
                     borderRadius: '8px', 
                     border: 'none', 
                     background: 'transparent', 
-                    color: '#9CA3AF',
+                    color: 'var(--text-muted)',
                     cursor: 'pointer' 
                   }}
                   disabled={isSubmitting}

@@ -133,9 +133,19 @@ function PostCard({ post, currentUserId }: { post: PostData; currentUserId?: str
 
       {post.tags.length > 0 && (
         <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', flexWrap: 'wrap' }}>
-          {post.tags.map((tag) => (
-            <span key={tag} className="post-tag">#{tag}</span>
-          ))}
+          {post.tags.map((tag) => {
+            const cleanTag = tag.replace(/^#/, '');
+            return (
+              <Link
+                key={tag}
+                href={`/tags/${encodeURIComponent(cleanTag)}`}
+                className="post-tag"
+                style={{ textDecoration: 'none' }}
+              >
+                #{cleanTag}
+              </Link>
+            );
+          })}
         </div>
       )}
 

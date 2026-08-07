@@ -46,16 +46,19 @@ export default function TagsClient({ tags, contributors }: TagsClientProps) {
             <div className="empty-state">ไม่พบแท็กที่ค้นหา</div>
           ) : (
             <div className="tags-grid">
-              {filteredTags.map((tag) => (
-                <Link
-                  key={tag.name}
-                  href={`/tags/${encodeURIComponent(tag.name)}`}
-                  className="tag-card-item"
-                >
-                  <span className="tag-name-pill">#{tag.name}</span>
-                  <span className="tag-count-text">{tag.count} โพสต์</span>
-                </Link>
-              ))}
+              {filteredTags.map((tag) => {
+                const cleanName = tag.name.replace(/^#/, '');
+                return (
+                  <Link
+                    key={tag.name}
+                    href={`/tags/${encodeURIComponent(cleanName)}`}
+                    className="tag-card-item"
+                  >
+                    <span className="tag-name-pill">#{cleanName}</span>
+                    <span className="tag-count-text">{tag.count} โพสต์</span>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </main>

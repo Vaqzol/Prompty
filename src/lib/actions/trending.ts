@@ -273,7 +273,7 @@ export async function getAllTags() {
   });
 
   const result = Object.entries(tagCounts).map(([name, count]) => ({
-    name: `#${name}`,
+    name: name.replace(/^#/, ''),
     count,
   }));
 
@@ -289,7 +289,7 @@ export async function getPostsByTag(
   period: 'week' | 'month' | 'all' = 'week'
 ) {
   const dateFrom = getDateFromPeriod(period);
-  const decoded = decodeURIComponent(tag).trim();
+  const cleanTag = decodeURIComponent(tag).trim().replace(/^#/, '').toLowerCase();
 
   // Find posts with matching tags (case-insensitive)
   const allPosts = await prisma.post.findMany({
@@ -317,9 +317,8 @@ export async function getPostsByTag(
     },
   });
 
-  const tagLower = decoded.toLowerCase();
   const filtered = allPosts.filter((post) =>
-    post.tags.some((t) => t.toLowerCase() === tagLower)
+    post.tags.some((t) => t.trim().replace(/^#/, '').toLowerCase() === cleanTag)
   );
 
   const formatted = filtered.map((post) => {

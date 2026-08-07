@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowBigUp, ArrowBigDown, Reply } from 'lucide-react';
+import { Reply } from 'lucide-react';
 import { createComment } from '@/lib/actions/post';
 
 function timeAgo(date: Date | string) {
@@ -37,6 +37,7 @@ interface CommentSectionProps {
 export default function CommentSection({ postId, comments, currentUser }: CommentSectionProps) {
   const [commentText, setCommentText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleSubmit = async () => {
     if (!commentText.trim() || isSubmitting) return;
@@ -48,6 +49,13 @@ export default function CommentSection({ postId, comments, currentUser }: Commen
       // handle error
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleReply = (userHandle: string) => {
+    setCommentText((prev) => `@${userHandle} ${prev}`);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
     }
   };
 
@@ -63,6 +71,7 @@ export default function CommentSection({ postId, comments, currentUser }: Commen
               {currentUser.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <textarea
+              ref={textareaRef}
               className="comment-textarea"
               placeholder="เพิ่ม ความคิดเห็น"
               value={commentText}
@@ -85,29 +94,27 @@ export default function CommentSection({ postId, comments, currentUser }: Commen
       {/* Comment list */}
       {comments.length > 0 && (
         <div className="comment-list">
-          {comments.map((comment) => (
-            <div key={comment.id} className="comment-item">
-              <div className="comment-vote">
-                <button><ArrowBigUp size={16} /></button>
-                <span className="comment-vote-count">0</span>
-                <button><ArrowBigDown size={16} /></button>
-              </div>
-              <div className="comment-body">
-                <div className="comment-meta">
-                  <Link href={`/profile/${comment.user.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', gap: '4px' }}>
-                    <span className="comment-author">{comment.user.name || 'ผู้ใช้'}</span>
-                    <span className="comment-handle">@{comment.user.handle || comment.user.email?.split('@')[0]}</span>
-                  </Link>
-                  <span className="comment-time">• {timeAgo(comment.createdAt)}</span>
+          {comments.map((comment) => {
+            const handle = comment.user.handle || comment.user.email?.split('@')[0] || 'user';
+            return (
+              <div key={comment.id} className="comment-item">
+                <div className="comment-body">
+                  <div className="comment-meta">
+                    <Link href={`/profile/${comment.user.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'inline-flex', gap: '4px' }}>
+                      <span className="comment-author">{comment.user.name || 'ผู้ใช้'}</span>
+                      <span className="comment-handle">@{handle}</span>
+                    </Link>
+                    <span className="comment-time">• {timeAgo(comment.createdAt)}</span>
+                  </div>
+                  <p className="comment-content">{comment.content}</p>
+                  <button className="comment-reply-btn" onClick={() => handleReply(handle)}>
+                    <Reply size={14} />
+                    ตอบกลับ
+                  </button>
                 </div>
-                <p className="comment-content">{comment.content}</p>
-                <button className="comment-reply-btn">
-                  <Reply size={14} />
-                  Reply
-                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

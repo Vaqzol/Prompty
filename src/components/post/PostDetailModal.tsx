@@ -34,6 +34,14 @@ export default function PostDetailModal({ children }: { children: React.ReactNod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleContentClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const link = target.closest('a');
+    if (link && link.href) {
+      onDismiss();
+    }
+  };
+
   return (
     <div
       ref={overlayRef}
@@ -45,7 +53,7 @@ export default function PostDetailModal({ children }: { children: React.ReactNod
           <X size={28} />
         </button>
         <div className="post-modal-content">
-          <div className="post-modal-scrollable">
+          <div className="post-modal-scrollable" onClick={handleContentClick}>
             {children}
           </div>
         </div>
