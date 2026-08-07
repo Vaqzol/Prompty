@@ -38,7 +38,15 @@ export default function PostDetailModal({ children }: { children: React.ReactNod
     const target = e.target as HTMLElement;
     const link = target.closest('a');
     if (link && link.href) {
-      onDismiss();
+      try {
+        const url = new URL(link.href, window.location.href);
+        if (url.origin === window.location.origin) {
+          e.preventDefault();
+          router.push(url.pathname + url.search);
+        }
+      } catch {
+        /* ignore */
+      }
     }
   };
 

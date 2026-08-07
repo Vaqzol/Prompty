@@ -121,9 +121,19 @@ export default function PostDetailClient({ post, currentUser }: { post: PostData
       {/* Tags */}
       {post.tags.length > 0 && (
         <div className="post-detail-tags">
-          {post.tags.map((tag) => (
-            <span key={tag} className="post-tag">#{tag}</span>
-          ))}
+          {post.tags.map((tag) => {
+            const cleanTag = tag.replace(/^#/, '');
+            return (
+              <Link
+                key={tag}
+                href={`/tags/${encodeURIComponent(cleanTag)}`}
+                className="post-tag"
+                style={{ textDecoration: 'none' }}
+              >
+                #{cleanTag}
+              </Link>
+            );
+          })}
         </div>
       )}
 
