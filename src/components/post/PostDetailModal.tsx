@@ -42,7 +42,7 @@ export default function PostDetailModal({ children }: { children: React.ReactNod
         const url = new URL(link.href, window.location.href);
         if (url.origin === window.location.origin) {
           e.preventDefault();
-          router.push(url.pathname + url.search);
+          window.location.href = url.href;
         }
       } catch {
         /* ignore */
