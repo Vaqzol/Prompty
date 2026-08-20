@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bookmark, FolderOpen, X, Plus } from 'lucide-react';
 import { toggleBookmark, getCollections } from '@/lib/actions/bookmark';
 
@@ -20,6 +21,7 @@ export default function BookmarkButton({
   initialBookmarked: boolean;
   initialCollectionId?: string | null;
 }) {
+  const router = useRouter();
   const [isBookmarked, setIsBookmarked] = useState(initialBookmarked);
   const [isOpen, setIsOpen] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -63,6 +65,8 @@ export default function BookmarkButton({
       if (!result.success) {
         setIsBookmarked(true); // Revert
         alert(result.error);
+      } else {
+        router.refresh();
       }
     } else {
       // Open dropdown to select collection, don't save yet
@@ -85,6 +89,8 @@ export default function BookmarkButton({
       setIsBookmarked(false);
       setCurrentCollectionId(null);
       alert(res.error);
+    } else {
+      router.refresh();
     }
   };
 

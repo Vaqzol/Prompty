@@ -42,18 +42,14 @@ export default async function RootLayout({
     try {
       const prefs = await prisma.user.findUnique({
         where: { id: session.user.id },
-        select: { theme: true, codeTheme: true, status: true },
+        select: { theme: true, codeTheme: true },
       });
       if (prefs) {
-        if (prefs.status === 'BANNED') {
-          const { redirect } = await import('next/navigation');
-          redirect('/login?error=banned');
-        }
         userTheme = prefs.theme || 'light';
         userCodeTheme = prefs.codeTheme || 'VS Code Dark Modern';
       }
-    } catch (e) {
-      if ((e as Error)?.message?.includes('NEXT_REDIRECT')) throw e;
+    } catch {
+      /* ignore */
     }
   }
 

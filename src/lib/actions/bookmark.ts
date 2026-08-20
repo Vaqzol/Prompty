@@ -2,6 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '../prisma';
+import { revalidatePath } from 'next/cache';
 
 export async function toggleBookmark(postId: string, collectionId?: string) {
   try {
@@ -31,6 +32,8 @@ export async function toggleBookmark(postId: string, collectionId?: string) {
           },
         },
       });
+      revalidatePath('/bookmarks');
+      revalidatePath('/profile');
       return { success: true, bookmarked: false };
     } else {
       // Add bookmark
@@ -41,6 +44,8 @@ export async function toggleBookmark(postId: string, collectionId?: string) {
           collectionId: collectionId || null,
         },
       });
+      revalidatePath('/bookmarks');
+      revalidatePath('/profile');
       return { success: true, bookmarked: true };
     }
   } catch (error) {
@@ -135,6 +140,9 @@ export async function createCollection(name: string, isPublic: boolean = false, 
       },
     });
 
+    revalidatePath('/bookmarks');
+    revalidatePath('/profile');
+    revalidatePath('/collections');
     return {
       success: true,
       collection: {
@@ -181,6 +189,9 @@ export async function updateCollection(
       data: updateData,
     });
 
+    revalidatePath('/bookmarks');
+    revalidatePath('/profile');
+    revalidatePath('/collections');
     return { success: true };
   } catch (error) {
     if ((error as { code?: string }).code === 'P2002') {
@@ -205,6 +216,9 @@ export async function deleteCollection(collectionId: string) {
       where: { id: collectionId, userId: session.user.id },
     });
 
+    revalidatePath('/bookmarks');
+    revalidatePath('/profile');
+    revalidatePath('/collections');
     return { success: true };
   } catch (error) {
     console.error('Error deleting collection:', error);
@@ -222,6 +236,9 @@ export async function moveToCollection(bookmarkId: string, collectionId: string 
       data: { collectionId },
     });
 
+    revalidatePath('/bookmarks');
+    revalidatePath('/profile');
+    revalidatePath('/collections');
     return { success: true };
   } catch (error) {
     console.error('Error moving bookmark:', error);

@@ -74,6 +74,7 @@ export default function BookmarksClient({
   currentUserId?: string;
 }) {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [postList, setPostList] = useState<PostData[]>(posts);
   const [collections, setCollections] = useState<CollectionData[]>(initialCollections);
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
@@ -83,6 +84,14 @@ export default function BookmarksClient({
   const [hasEnteredMenu, setHasEnteredMenu] = useState(false);
   const createInputRef = useRef<HTMLInputElement>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setPostList(posts);
+  }, [posts]);
+
+  useEffect(() => {
+    setCollections(initialCollections);
+  }, [initialCollections]);
 
   // Add click-outside listener for the sidebar menu
   useEffect(() => {
@@ -113,11 +122,11 @@ export default function BookmarksClient({
 
   // Filter posts
   const filtered = (() => {
-    if (activeFilter === 'all') return posts;
-    if (activeFilter === 'CODE') return posts.filter((p) => p.type === 'CODE');
-    if (activeFilter === 'PROMPT') return posts.filter((p) => p.type === 'PROMPT');
+    if (activeFilter === 'all') return postList;
+    if (activeFilter === 'CODE') return postList.filter((p) => p.type === 'CODE');
+    if (activeFilter === 'PROMPT') return postList.filter((p) => p.type === 'PROMPT');
     // Collection filter
-    return posts.filter((p) => p.collectionId === activeFilter);
+    return postList.filter((p) => p.collectionId === activeFilter);
   })();
 
   const handleCreate = async () => {
@@ -181,6 +190,52 @@ export default function BookmarksClient({
     setMenuOpenId(null);
   };
 
+  const handleMovePost = async (bookmarkId: string, targetCollectionId: string | null) => {
+    const postToMove = postList.find((p) => p.bookmarkId === bookmarkId);
+    const oldColId = postToMove?.collectionId;
+
+    setPostList((prev) =>
+      prev.map((p) => (p.bookmarkId === bookmarkId ? { ...p, collectionId: targetCollectionId } : p))
+    );
+    setCollections((prevCols) =>
+      prevCols.map((c) => {
+        let diff = 0;
+        if (oldColId === c.id) diff -= 1;
+        if (targetCollectionId === c.id) diff += 1;
+        return diff !== 0 ? { ...c, count: Math.max(0, c.count + diff) } : c;
+      })
+    );
+
+    const result = await moveToCollection(bookmarkId, targetCollectionId);
+    if (!result.success) {
+      setPostList((prev) =>
+        prev.map((p) => (p.bookmarkId === bookmarkId ? { ...p, collectionId: oldColId } : p))
+      );
+      setCollections((prevCols) =>
+        prevCols.map((c) => {
+          let diff = 0;
+          if (oldColId === c.id) diff += 1;
+          if (targetCollectionId === c.id) diff -= 1;
+          return diff !== 0 ? { ...c, count: Math.max(0, c.count + diff) } : c;
+        })
+      );
+      alert(result.error);
+    }
+  };
+
+  const handleRemoveBookmark = async (postId: string) => {
+    const postToRemove = postList.find((p) => p.id === postId);
+    setPostList((prev) => prev.filter((p) => p.id !== postId));
+    if (postToRemove?.collectionId) {
+      setCollections((prevCols) =>
+        prevCols.map((c) =>
+          c.id === postToRemove.collectionId ? { ...c, count: Math.max(0, c.count - 1) } : c
+        )
+      );
+    }
+    await toggleBookmark(postId);
+  };
+
   return (
     <div className="bookmarks-layout">
       {/* ===== Sidebar ===== */}
@@ -193,7 +248,7 @@ export default function BookmarksClient({
           >
             <Bookmark size={16} />
             <span>ทั้งหมด</span>
-            <span className="sidebar-count">{posts.length}</span>
+            <span className="sidebar-count">{postList.length}</span>
           </button>
           <button
             className={`sidebar-item ${activeFilter === 'CODE' ? 'active' : ''}`}
@@ -201,7 +256,7 @@ export default function BookmarksClient({
           >
             <Code2 size={16} />
             <span>Code Snippets</span>
-            <span className="sidebar-count">{posts.filter((p) => p.type === 'CODE').length}</span>
+            <span className="sidebar-count">{postList.filter((p) => p.type === 'CODE').length}</span>
           </button>
           <button
             className={`sidebar-item ${activeFilter === 'PROMPT' ? 'active' : ''}`}
@@ -209,7 +264,7 @@ export default function BookmarksClient({
           >
             <Sparkles size={16} />
             <span>AI Prompts</span>
-            <span className="sidebar-count">{posts.filter((p) => p.type === 'PROMPT').length}</span>
+            <span className="sidebar-count">{postList.filter((p) => p.type === 'PROMPT').length}</span>
           </button>
         </div>
 
@@ -344,6 +399,8 @@ export default function BookmarksClient({
               post={post}
               currentUserId={currentUserId}
               collections={collections}
+              onMove={handleMovePost}
+              onRemove={handleRemoveBookmark}
             />
           ))
         )}
@@ -357,10 +414,14 @@ function SavedPostCard({
   post,
   currentUserId,
   collections,
+  onMove,
+  onRemove,
 }: {
   post: PostData;
   currentUserId?: string;
   collections: CollectionData[];
+  onMove: (bookmarkId: string, collectionId: string | null) => Promise<void>;
+  onRemove: (postId: string) => Promise<void>;
 }) {
   const [userVote, setUserVote] = useState<'UP' | 'DOWN' | null>(() => {
     if (!currentUserId) return null;
@@ -371,7 +432,6 @@ function SavedPostCard({
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isMoveOpen, setIsMoveOpen] = useState(false);
-  const [currentCollectionId, setCurrentCollectionId] = useState(post.collectionId || null);
 
   const handleVote = async (type: 'UP' | 'DOWN') => {
     if (!currentUserId) return;
@@ -381,11 +441,13 @@ function SavedPostCard({
 
   const handleMove = async (collectionId: string | null) => {
     if (!post.bookmarkId) return;
-    const result = await moveToCollection(post.bookmarkId, collectionId);
-    if (result.success) {
-      setCurrentCollectionId(collectionId);
-    }
     setIsMoveOpen(false);
+    await onMove(post.bookmarkId, collectionId);
+  };
+
+  const handleBookmarkToggle = async () => {
+    setIsBookmarked(false);
+    await onRemove(post.id);
   };
 
   return (
@@ -452,10 +514,10 @@ function SavedPostCard({
       )}
 
       {/* Collection badge */}
-      {currentCollectionId && (
+      {post.collectionId && (
         <div className="bookmark-collection-badge">
           <FolderOpen size={12} />
-          <span>{collections.find((c) => c.id === currentCollectionId)?.name || 'คอลเลกชัน'}</span>
+          <span>{collections.find((c) => c.id === post.collectionId)?.name || 'คอลเลกชัน'}</span>
         </div>
       )}
 
@@ -488,7 +550,7 @@ function SavedPostCard({
                 <button onClick={() => setIsMoveOpen(false)}><X size={14} /></button>
               </div>
               <button
-                className={`move-dropdown-item ${!currentCollectionId ? 'active' : ''}`}
+                className={`move-dropdown-item ${!post.collectionId ? 'active' : ''}`}
                 onClick={() => handleMove(null)}
               >
                 <Bookmark size={14} /> ไม่จัดคอลเลกชัน
@@ -496,7 +558,7 @@ function SavedPostCard({
               {collections.map((col) => (
                 <button
                   key={col.id}
-                  className={`move-dropdown-item ${currentCollectionId === col.id ? 'active' : ''}`}
+                  className={`move-dropdown-item ${post.collectionId === col.id ? 'active' : ''}`}
                   onClick={() => handleMove(col.id)}
                 >
                   <FolderOpen size={14} /> {col.name}
@@ -515,10 +577,7 @@ function SavedPostCard({
         </button>
         <button
           className="action-btn"
-          onClick={async () => {
-            setIsBookmarked(!isBookmarked);
-            await toggleBookmark(post.id);
-          }}
+          onClick={handleBookmarkToggle}
           style={{ color: isBookmarked ? '#3B82F6' : undefined }}
         >
           <Bookmark size={18} fill={isBookmarked ? '#3B82F6' : 'none'} />

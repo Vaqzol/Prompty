@@ -1,8 +1,9 @@
 import { auth } from '@/auth';
+import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// Pages ที่ไม่ต้อง login ก็เข้าได้
+// Paths that do not require authentication
 const publicPaths = [
   '/login',
   '/register',
@@ -17,6 +18,17 @@ const publicPaths = [
   '/api/auth',
 ];
 
+async function isMaintenanceModeActive(): Promise<boolean> {
+  try {
+    const setting = await (prisma as any).systemSetting.findUnique({
+      where: { key: 'maintenance_mode' },
+    });
+    return setting?.value === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = await auth();
@@ -29,35 +41,52 @@ export async function proxy(request: NextRequest) {
     if (pathname !== '/login') {
       return NextResponse.redirect(new URL('/login?error=banned', request.url));
     }
+    // Stay on /login with error message, do NOT redirect to /
+    return NextResponse.next();
   }
 
-  // ── 1. Admin Routes (/admin/*) ──
+  // ── 1. Maintenance Mode Check ──
+  const isMaintenance = await isMaintenanceModeActive();
+  if (isMaintenance && userRole !== 'ADMIN') {
+    // Admins can log in at /admin/login
+    if (pathname === '/admin/login' || pathname.startsWith('/admin')) {
+      // Allow proceeding to admin auth logic below
+    } else if (pathname === '/maintenance') {
+      return NextResponse.next();
+    } else if (pathname.startsWith('/api/auth') || pathname === '/logo.png') {
+      return NextResponse.next();
+    } else {
+      // Redirect all regular users and guests to /maintenance
+      return NextResponse.redirect(new URL('/maintenance', request.url));
+    }
+  }
+
+  // ── 2. Admin Routes (/admin/*) ──
   if (pathname.startsWith('/admin')) {
     if (pathname === '/admin/login') {
-      // ถ้าล็อกอินเป็น Admin อยู่แล้ว ให้ส่งไปหน้า /admin ทันที
+      // If already logged in as ADMIN -> send to /admin dashboard
       if (session && userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
       return NextResponse.next();
     }
 
-    // ต้องล็อกอินและเป็น ADMIN เท่านั้น
+    // All other /admin/* paths require ADMIN role
     if (!session) {
       return NextResponse.redirect(new URL('/admin/login', request.url));
     }
 
     if (userRole !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/login', request.url));
+      return NextResponse.redirect(new URL('/admin/login', request.url));
     }
 
     return NextResponse.next();
   }
 
-  // ── 2. User Routes (Non-admin) ──
-  // ถ้าเป็น public path → ผ่านได้เลย
+  // ── 3. Public Routes ──
   if (publicPaths.some((path) => pathname.startsWith(path))) {
-    // ถ้าผู้ใช้อยู่หน้า /login หรือ /register แต่ล็อกอินอยู่แล้ว
-    if (session && (pathname === '/login' || pathname === '/register')) {
+    // If already logged in (active) and visiting login/register -> redirect to appropriate home
+    if (session && userStatus !== 'BANNED' && (pathname === '/login' || pathname === '/register')) {
       if (userRole === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url));
       }
@@ -66,7 +95,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ต้องล็อกอินก่อนเข้าถึงหน้าสำหรับ User
+  // ── 4. Protected User Routes ──
   if (!session) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -75,5 +104,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/auth|api/upload).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/upload).*)'],
 };
