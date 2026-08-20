@@ -5,11 +5,11 @@ import Link from 'next/link';
 import {
   ArrowBigUp, ArrowBigDown, MessageSquare, Flag, Share2,
   Bookmark, Code2, Sparkles, Plus, MoreHorizontal, Pencil,
-  Trash2, FolderOpen, FolderInput, X,
+  Trash2, FolderOpen, FolderInput, X, Globe, Lock, Check,
 } from 'lucide-react';
 import hljs from 'highlight.js';
 import { toggleVote } from '@/lib/actions/post';
-import { toggleBookmark, createCollection, renameCollection, deleteCollection, moveToCollection } from '@/lib/actions/bookmark';
+import { toggleBookmark, createCollection, updateCollection, deleteCollection, moveToCollection } from '@/lib/actions/bookmark';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
 import CopyBtn from '@/components/shared/CopyBtn';
 import CodeCopyBlock from '@/components/shared/CodeCopyBlock';
@@ -47,6 +47,8 @@ interface PostData {
 interface CollectionData {
   id: string;
   name: string;
+  description?: string;
+  isPublic?: boolean;
   count: number;
 }
 
@@ -130,9 +132,34 @@ export default function BookmarksClient({
     setIsCreating(false);
   };
 
+  const [copiedColId, setCopiedColId] = useState<string | null>(null);
+
+  const handleTogglePrivacy = async (col: CollectionData) => {
+    const newStatus = !col.isPublic;
+    const result = await updateCollection(col.id, { isPublic: newStatus });
+    if (result.success) {
+      setCollections(collections.map((c) => (c.id === col.id ? { ...c, isPublic: newStatus } : c)));
+    } else {
+      alert(result.error);
+    }
+    setMenuOpenId(null);
+  };
+
+  const handleCopyShareLink = async (colId: string) => {
+    const url = `${window.location.origin}/collections/${colId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedColId(colId);
+      setTimeout(() => setCopiedColId(null), 2500);
+    } catch {
+      alert(`ลิงก์สำหรับแชร์: ${url}`);
+    }
+    setMenuOpenId(null);
+  };
+
   const handleRename = async (id: string) => {
     if (!editName.trim()) { setEditingId(null); return; }
-    const result = await renameCollection(id, editName.trim());
+    const result = await updateCollection(id, { name: editName.trim() });
     if (result.success) {
       setCollections(collections.map((c) => c.id === id ? { ...c, name: editName.trim() } : c));
     } else {
@@ -214,7 +241,7 @@ export default function BookmarksClient({
                   onClick={() => setActiveFilter(col.id)}
                   style={{ paddingRight: '28px' }}
                 >
-                  <FolderOpen size={16} />
+                  {col.isPublic ? <Globe size={15} style={{ color: '#10b981' }} /> : <FolderOpen size={16} />}
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{col.name}</span>
                   <span className="sidebar-count">{col.count}</span>
                   <button
@@ -241,6 +268,14 @@ export default function BookmarksClient({
                     }
                   }}
                 >
+                  <button onClick={() => handleTogglePrivacy(col)}>
+                    {col.isPublic ? <Lock size={14} /> : <Globe size={14} />}
+                    {col.isPublic ? 'เปลี่ยนเป็นส่วนตัว' : 'เปลี่ยนเป็นสาธารณะ'}
+                  </button>
+                  <button onClick={() => handleCopyShareLink(col.id)}>
+                    {copiedColId === col.id ? <Check size={14} /> : <Share2 size={14} />}
+                    {copiedColId === col.id ? 'คัดลอกลิงก์แล้ว!' : 'แชร์คอลเลกชัน'}
+                  </button>
                   <button onClick={() => {
                     setEditingId(col.id);
                     setEditName(col.name);

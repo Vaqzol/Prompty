@@ -110,12 +110,14 @@ export async function getCollections() {
   return collections.map((c) => ({
     id: c.id,
     name: c.name,
+    description: c.description || '',
+    isPublic: c.isPublic,
     count: c._count.bookmarks,
     createdAt: c.createdAt,
   }));
 }
 
-export async function createCollection(name: string) {
+export async function createCollection(name: string, isPublic: boolean = false, description?: string) {
   try {
     const session = await auth();
     if (!session?.user?.id) return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
@@ -127,11 +129,22 @@ export async function createCollection(name: string) {
     const collection = await prisma.bookmarkCollection.create({
       data: {
         name: trimmed,
+        isPublic,
+        description: description?.trim() || null,
         userId: session.user.id,
       },
     });
 
-    return { success: true, collection: { id: collection.id, name: collection.name, count: 0 } };
+    return {
+      success: true,
+      collection: {
+        id: collection.id,
+        name: collection.name,
+        description: collection.description || '',
+        isPublic: collection.isPublic,
+        count: 0,
+      },
+    };
   } catch (error) {
     // Unique constraint error
     if ((error as { code?: string }).code === 'P2002') {
@@ -142,17 +155,30 @@ export async function createCollection(name: string) {
   }
 }
 
-export async function renameCollection(collectionId: string, name: string) {
+export async function updateCollection(
+  collectionId: string,
+  data: { name?: string; isPublic?: boolean; description?: string }
+) {
   try {
     const session = await auth();
     if (!session?.user?.id) return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
 
-    const trimmed = name.trim();
-    if (!trimmed) return { success: false, error: 'กรุณาระบุชื่อคอลเลกชัน' };
+    const updateData: { name?: string; isPublic?: boolean; description?: string | null } = {};
+    if (data.name !== undefined) {
+      const trimmed = data.name.trim();
+      if (!trimmed) return { success: false, error: 'กรุณาระบุชื่อคอลเลกชัน' };
+      updateData.name = trimmed;
+    }
+    if (data.isPublic !== undefined) {
+      updateData.isPublic = data.isPublic;
+    }
+    if (data.description !== undefined) {
+      updateData.description = data.description.trim() || null;
+    }
 
     await prisma.bookmarkCollection.update({
       where: { id: collectionId, userId: session.user.id },
-      data: { name: trimmed },
+      data: updateData,
     });
 
     return { success: true };
@@ -160,9 +186,13 @@ export async function renameCollection(collectionId: string, name: string) {
     if ((error as { code?: string }).code === 'P2002') {
       return { success: false, error: 'ชื่อคอลเลกชันนี้มีอยู่แล้ว' };
     }
-    console.error('Error renaming collection:', error);
+    console.error('Error updating collection:', error);
     return { success: false, error: 'เกิดข้อผิดพลาด' };
   }
+}
+
+export async function renameCollection(collectionId: string, name: string) {
+  return updateCollection(collectionId, { name });
 }
 
 export async function deleteCollection(collectionId: string) {
@@ -197,4 +227,86 @@ export async function moveToCollection(bookmarkId: string, collectionId: string 
     console.error('Error moving bookmark:', error);
     return { success: false, error: 'เกิดข้อผิดพลาด' };
   }
+}
+
+// ─────────────────────────────────────────────
+// Public Collections API for Profile & Sharing
+// ─────────────────────────────────────────────
+export async function getPublicCollectionsByUser(userId: string) {
+  const collections = await prisma.bookmarkCollection.findMany({
+    where: { userId, isPublic: true },
+    include: {
+      _count: { select: { bookmarks: true } },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return collections.map((c) => ({
+    id: c.id,
+    name: c.name,
+    description: c.description || '',
+    isPublic: c.isPublic,
+    count: c._count.bookmarks,
+    createdAt: c.createdAt,
+  }));
+}
+
+export async function getPublicCollectionDetail(collectionId: string) {
+  const session = await auth();
+  const currentUserId = session?.user?.id;
+
+  const collection = await prisma.bookmarkCollection.findUnique({
+    where: { id: collectionId },
+    include: {
+      user: {
+        select: { id: true, name: true, image: true, handle: true, email: true },
+      },
+      bookmarks: {
+        include: {
+          post: {
+            include: {
+              author: {
+                select: { id: true, name: true, image: true, handle: true, email: true },
+              },
+              votes: { select: { type: true, userId: true } },
+              bookmarks: { select: { userId: true } },
+              _count: { select: { comments: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      },
+    },
+  });
+
+  if (!collection) return null;
+
+  // If private and not owner -> cannot view
+  if (!collection.isPublic && collection.userId !== currentUserId) {
+    return null;
+  }
+
+  const formattedPosts = collection.bookmarks.map((bm) => {
+    const p = bm.post;
+    const upVotes = p.votes.filter((v) => v.type === 'UP').length;
+    const downVotes = p.votes.filter((v) => v.type === 'DOWN').length;
+    return {
+      ...p,
+      bookmarkId: bm.id,
+      collectionId: bm.collectionId,
+      voteScore: upVotes - downVotes,
+      commentCount: p._count.comments,
+    };
+  });
+
+  return {
+    id: collection.id,
+    name: collection.name,
+    description: collection.description || '',
+    isPublic: collection.isPublic,
+    createdAt: collection.createdAt,
+    owner: collection.user,
+    posts: formattedPosts,
+    isOwner: collection.userId === currentUserId,
+  };
 }

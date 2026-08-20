@@ -2,6 +2,7 @@ import MainNavbar from '@/components/layout/MainNavbar';
 import PublicProfileClient from './PublicProfileClient';
 import { auth } from '@/auth';
 import { getUserPublicProfile, getUserPosts } from '@/lib/actions/post';
+import { getPublicCollectionsByUser } from '@/lib/actions/bookmark';
 import { redirect, notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 
@@ -18,6 +19,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   if (!profile) notFound();
 
   const posts = await getUserPosts(id);
+  const collections = await getPublicCollectionsByUser(id);
 
   // เช็คว่า user ปัจจุบัน follow คนนี้อยู่ไหม
   let initialIsFollowing = false;
@@ -39,6 +41,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       <PublicProfileClient 
         profile={profile} 
         initialPosts={posts} 
+        initialCollections={collections}
         initialIsFollowing={initialIsFollowing} 
         currentUserId={session?.user?.id}
       />

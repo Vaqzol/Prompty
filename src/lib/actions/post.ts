@@ -367,6 +367,8 @@ export async function getUserProfile() {
     image: user.image,
     bio: user.bio,
     handle: user.handle || user.email?.split('@')[0] || null,
+    githubUrl: user.githubUrl,
+    twitterUrl: user.twitterUrl,
     postCount: user._count.posts,
     totalVoteScore,
     totalCopies,

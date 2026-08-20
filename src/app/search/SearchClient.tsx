@@ -1,7 +1,7 @@
 'use client';
 
 import './search.css';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Code2,
@@ -287,13 +287,14 @@ function UserCard({ user, currentUserId }: { user: UserData; currentUserId?: str
 // Tag Card
 // ─────────────────────────────────────────────
 function TagCard({ tag }: { tag: TagData }) {
+  const cleanName = tag.name.replace(/^#/, '');
   return (
-    <Link href={`/search?q=${encodeURIComponent(tag.name)}`} className="search-tag-card">
+    <Link href={`/tags/${encodeURIComponent(cleanName)}`} className="search-tag-card">
       <div className="search-tag-icon">
         <Hash size={20} />
       </div>
       <div className="search-tag-info">
-        <span className="search-tag-name">#{tag.name}</span>
+        <span className="search-tag-name">#{cleanName}</span>
         <span className="search-tag-count">{tag.count} โพสต์</span>
       </div>
     </Link>
@@ -317,6 +318,11 @@ export default function SearchClient({
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [posts, setPosts] = useState<PostData[]>(initialPosts);
   const [isFiltering, setIsFiltering] = useState(false);
+
+  // Sync state when initialPosts change (e.g. searching a new term from navbar)
+  useEffect(() => {
+    setPosts(initialPosts);
+  }, [initialPosts]);
 
   // Filter posts by tab
   const getFilteredPosts = () => {
@@ -361,12 +367,12 @@ export default function SearchClient({
   };
 
   // Counts for tabs
-  const codePosts = initialPosts.filter((p) => p.type === 'CODE').length;
-  const promptPosts = initialPosts.filter((p) => p.type === 'PROMPT').length;
+  const codePosts = posts.filter((p) => p.type === 'CODE').length;
+  const promptPosts = posts.filter((p) => p.type === 'PROMPT').length;
 
   const getTabCount = (key: TabKey) => {
     switch (key) {
-      case 'all': return initialPosts.length + initialUsers.length + initialTags.length;
+      case 'all': return posts.length + initialUsers.length + initialTags.length;
       case 'code': return codePosts;
       case 'prompt': return promptPosts;
       case 'users': return initialUsers.length;

@@ -115,28 +115,29 @@ export async function getDashboardStats() {
   };
 }
 
-// ── 3. Dashboard: กราฟสถิติโพสต์ใหม่ย้อนหลัง 30 วัน ──
-export async function getDailyPostStats() {
+// ── 3. Dashboard: กราฟสถิติโพสต์ใหม่ย้อนหลัง ──
+export async function getDailyPostStats(days: number = 30) {
   await requireAdmin();
 
+  const numDays = Math.max(1, Math.min(days, 180));
   const now = new Date();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(now.getDate() - 29);
-  thirtyDaysAgo.setHours(0, 0, 0, 0);
+  const startDate = new Date();
+  startDate.setDate(now.getDate() - (numDays - 1));
+  startDate.setHours(0, 0, 0, 0);
 
   const posts = await prisma.post.findMany({
     where: {
-      createdAt: { gte: thirtyDaysAgo },
+      createdAt: { gte: startDate },
     },
     select: {
       createdAt: true,
     },
   });
 
-  // สร้าง Map 30 วันล่าสุด
+  // สร้าง Map สำหรับช่วงวันที่เลือก
   const dateMap = new Map<string, number>();
-  for (let i = 0; i < 30; i++) {
-    const d = new Date(thirtyDaysAgo);
+  for (let i = 0; i < numDays; i++) {
+    const d = new Date(startDate);
     d.setDate(d.getDate() + i);
     const dateStr = `${d.getDate()}/${d.getMonth() + 1}`;
     dateMap.set(dateStr, 0);
@@ -399,10 +400,12 @@ export async function getAdminReports(options?: {
     where.OR = [
       { post: { title: { contains: query, mode: 'insensitive' } } },
       { post: { author: { handle: { contains: query, mode: 'insensitive' } } } },
+      { postTitle: { contains: query, mode: 'insensitive' } },
+      { authorHandle: { contains: query, mode: 'insensitive' } },
     ];
   }
 
-  // ดึงรายการ Report และจัดกลุ่มตาม postId
+  // ดึงรายการ Report และจัดกลุ่มตาม postId หรือ id
   const reports = await prisma.report.findMany({
     where,
     orderBy: { createdAt: 'desc' },
@@ -412,6 +415,9 @@ export async function getAdminReports(options?: {
       status: true,
       createdAt: true,
       postId: true,
+      postTitle: true,
+      authorHandle: true,
+      authorName: true,
       post: {
         select: {
           id: true,
@@ -424,7 +430,7 @@ export async function getAdminReports(options?: {
     },
   });
 
-  // Group by postId
+  // Group by postId หรือ id ของ report
   const groupedMap = new Map<string, {
     postId: string;
     postTitle: string;
@@ -433,22 +439,28 @@ export async function getAdminReports(options?: {
     reasons: string[];
     reportCount: number;
     latestReportId: string;
+    isDeleted: boolean;
   }>();
 
   reports.forEach((r) => {
-    if (!r.post) return;
-    if (!groupedMap.has(r.postId)) {
-      groupedMap.set(r.postId, {
-        postId: r.postId,
-        postTitle: r.post.title,
-        authorHandle: r.post.author.handle || r.post.author.name || 'user',
-        authorName: r.post.author.name || 'user',
+    const groupKey = r.postId || `resolved-${r.id}`;
+    const pTitle = r.post?.title || r.postTitle || '[โพสต์ถูกลบแล้ว]';
+    const aHandle = r.post?.author.handle || r.post?.author.name || r.authorHandle || r.authorName || 'user';
+    const aName = r.post?.author.name || r.authorName || 'user';
+
+    if (!groupedMap.has(groupKey)) {
+      groupedMap.set(groupKey, {
+        postId: r.postId || '',
+        postTitle: pTitle,
+        authorHandle: aHandle,
+        authorName: aName,
         reasons: [r.reason],
         reportCount: 1,
         latestReportId: r.id,
+        isDeleted: !r.post,
       });
     } else {
-      const item = groupedMap.get(r.postId)!;
+      const item = groupedMap.get(groupKey)!;
       item.reportCount += 1;
       if (!item.reasons.includes(r.reason)) {
         item.reasons.push(r.reason);
@@ -470,6 +482,8 @@ export async function getAdminReports(options?: {
 // ── 10. Reports: ดึงรายละเอียดรายงานของโพสต์เดี่ยว ──
 export async function getAdminReportDetail(postId: string) {
   await requireAdmin();
+
+  if (!postId) return null;
 
   const post = await prisma.post.findUnique({
     where: { id: postId },
@@ -514,16 +528,28 @@ export async function getAdminReportDetail(postId: string) {
 export async function adminResolveReport(postId: string) {
   await requireAdmin();
 
-  // อัปเดตสเตตัสเป็น RESOLVED ก่อนลบ
-  await prisma.report.updateMany({
-    where: { postId },
-    data: { status: 'RESOLVED' },
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: { author: true },
   });
 
-  // ลบโพสต์
-  await prisma.post.delete({
-    where: { id: postId },
-  });
+  if (post) {
+    // บันทึกประวัติ Snapshot ลงใน Report ก่อนลบโพสต์
+    await prisma.report.updateMany({
+      where: { postId },
+      data: {
+        status: 'RESOLVED',
+        postTitle: post.title,
+        authorHandle: post.author.handle || post.author.name || 'user',
+        authorName: post.author.name || 'user',
+      },
+    });
+
+    // ลบโพสต์
+    await prisma.post.delete({
+      where: { id: postId },
+    });
+  }
 
   revalidatePath('/admin/posts');
   revalidatePath('/admin/posts/reports');

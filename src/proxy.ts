@@ -11,6 +11,8 @@ const publicPaths = [
   '/forgot-password',
   '/reset-password',
   '/admin/login',
+  '/maintenance',
+  '/collections',
   '/logo.png',
   '/api/auth',
 ];
@@ -18,7 +20,16 @@ const publicPaths = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const session = await auth();
-  const userRole = (session?.user as any)?.role;
+  const user = session?.user as any;
+  const userRole = user?.role;
+  const userStatus = user?.status;
+
+  // ── 0. Banned User Real-time Check ──
+  if (session && userStatus === 'BANNED') {
+    if (pathname !== '/login') {
+      return NextResponse.redirect(new URL('/login?error=banned', request.url));
+    }
+  }
 
   // ── 1. Admin Routes (/admin/*) ──
   if (pathname.startsWith('/admin')) {
@@ -64,5 +75,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/auth).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/auth|api/upload).*)'],
 };

@@ -180,9 +180,16 @@ export default function AdminReportedPostsPage() {
                 </tr>
               ) : (
                 reports.map((r) => (
-                  <tr key={r.postId} className="admin-table-row">
+                  <tr key={r.postId || r.latestReportId} className="admin-table-row">
                     {/* โพสต์ */}
-                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{r.postTitle}</td>
+                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {r.postTitle}
+                      {r.isDeleted && (
+                        <span style={{ marginLeft: '8px', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', background: '#fee2e2', color: '#dc2626', fontWeight: 500 }}>
+                          ถูกลบแล้ว
+                        </span>
+                      )}
+                    </td>
 
                     {/* ผู้เขียน */}
                     <td style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>@{r.authorHandle}</td>
@@ -204,13 +211,15 @@ export default function AdminReportedPostsPage() {
                     {/* จัดการ */}
                     <td>
                       <div className="admin-actions-cell" style={{ justifyContent: 'flex-end' }}>
-                        <button
-                          className="admin-action-btn"
-                          onClick={() => setSelectedPostId(r.postId)}
-                          title="ดูรายละเอียดการรายงาน"
-                        >
-                          <Eye size={16} />
-                        </button>
+                        {r.postId && (
+                          <button
+                            className="admin-action-btn"
+                            onClick={() => setSelectedPostId(r.postId)}
+                            title="ดูรายละเอียดการรายงาน"
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
                         {status === 'PENDING' && (
                           <>
                             <button

@@ -101,15 +101,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* Area Chart Section */}
-      <div className="admin-chart-card">
-        <div className="admin-chart-header">
-          <div className="admin-chart-title">สถิติการใช้งาน (30 วันที่ผ่านมา)</div>
-          <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <MoreHorizontal size={18} />
-          </button>
-        </div>
-        <DashboardChart data={dailyData} />
-      </div>
+      <DashboardChart initialData={dailyData} />
 
       {/* Bottom 2 Columns: Activity & Popular Tags */}
       <div className="admin-grid-2col">

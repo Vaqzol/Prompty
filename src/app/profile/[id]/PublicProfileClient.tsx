@@ -16,6 +16,9 @@ import {
   Flag,
   UserPlus,
   UserMinus,
+  Folder,
+  Globe,
+  Check,
 } from 'lucide-react';
 import hljs from 'highlight.js';
 import CopyBtn from '@/components/shared/CopyBtn';
@@ -181,27 +184,52 @@ function PublicPostCard({ post, currentUserId }: { post: PostData; currentUserId
   );
 }
 
+interface CollectionData {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic?: boolean;
+  count: number;
+}
+
 export default function PublicProfileClient({
   profile,
   initialPosts,
+  initialCollections = [],
   initialIsFollowing,
   currentUserId,
 }: {
   profile: PublicProfileData;
   initialPosts: PostData[];
+  initialCollections?: CollectionData[];
   initialIsFollowing: boolean;
   currentUserId?: string;
 }) {
-  const [activeTab, setActiveTab] = useState<'all' | 'CODE' | 'PROMPT'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'CODE' | 'PROMPT' | 'COLLECTIONS'>('all');
   const [posts, setPosts] = useState<PostData[]>(initialPosts);
+  const [collections] = useState<CollectionData[]>(initialCollections);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [followerCount, setFollowerCount] = useState(profile.followerCount);
   const [loadingFollow, setLoadingFollow] = useState(false);
+  const [copiedColId, setCopiedColId] = useState<string | null>(null);
 
-  const handleTabChange = async (tab: 'all' | 'CODE' | 'PROMPT') => {
+  const handleTabChange = async (tab: 'all' | 'CODE' | 'PROMPT' | 'COLLECTIONS') => {
     setActiveTab(tab);
-    const result = await getUserPosts(profile.id, tab === 'all' ? undefined : tab);
-    setPosts(result as PostData[]);
+    if (tab !== 'COLLECTIONS') {
+      const result = await getUserPosts(profile.id, tab === 'all' ? undefined : tab);
+      setPosts(result as PostData[]);
+    }
+  };
+
+  const handleCopyColLink = async (colId: string) => {
+    const url = `${window.location.origin}/collections/${colId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedColId(colId);
+      setTimeout(() => setCopiedColId(null), 2500);
+    } catch {
+      alert(`ลิงก์สำหรับแชร์: ${url}`);
+    }
   };
 
   const handleFollowToggle = async () => {
@@ -318,19 +346,115 @@ export default function PublicProfileClient({
           <button className={`profile-tab ${activeTab === 'PROMPT' ? 'active' : ''}`} onClick={() => handleTabChange('PROMPT')}>
             AI Prompts
           </button>
+          <button className={`profile-tab ${activeTab === 'COLLECTIONS' ? 'active' : ''}`} onClick={() => handleTabChange('COLLECTIONS')}>
+            คอลเลกชัน ({collections.length})
+          </button>
         </div>
 
-        <div className="profile-posts">
-          {posts.length === 0 ? (
+        {activeTab === 'COLLECTIONS' ? (
+          collections.length === 0 ? (
             <div className="empty-state">
-              <p>ยังไม่มีโพสต์</p>
+              <p>ผู้ใช้นี้ยังไม่มีคอลเลกชันสาธารณะ</p>
             </div>
           ) : (
-            posts.map((post) => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+              {collections.map((col) => (
+                <div
+                  key={col.id}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          color: '#10b981',
+                        }}
+                      >
+                        <Globe size={11} /> สาธารณะ
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{col.count} โพสต์</span>
+                    </div>
+
+                    <Link href={`/collections/${col.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
+                        {col.name}
+                      </h3>
+                    </Link>
+                    {col.description && (
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {col.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderTop: '1px solid var(--border-default)', paddingTop: '12px' }}>
+                    <Link
+                      href={`/collections/${col.id}`}
+                      style={{
+                        flex: 1,
+                        textAlign: 'center',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        textDecoration: 'none',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ดูคอลเลกชัน
+                    </Link>
+                    <button
+                      onClick={() => handleCopyColLink(col.id)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: copiedColId === col.id ? '#10b981' : 'var(--primary)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {copiedColId === col.id ? <Check size={14} /> : <Share2 size={14} />}
+                      {copiedColId === col.id ? 'ก๊อปแล้ว' : 'แชร์'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : posts.length === 0 ? (
+          <div className="empty-state">
+            <p>ยังไม่มีโพสต์</p>
+          </div>
+        ) : (
+          <div className="profile-posts">
+            {posts.map((post) => (
               <PublicPostCard key={post.id} post={post} currentUserId={currentUserId} />
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );

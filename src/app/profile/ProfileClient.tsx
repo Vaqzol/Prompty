@@ -17,6 +17,10 @@ import {
   Share2,
   Bookmark,
   Flag,
+  Globe,
+  Lock,
+  Check,
+  Folder,
 } from 'lucide-react';
 import { deletePost, getMyPosts, toggleVote } from '@/lib/actions/post';
 import ActionCopyBtn from '@/components/shared/ActionCopyBtn';
@@ -46,6 +50,8 @@ interface ProfileData {
   image: string | null;
   bio: string | null;
   handle: string | null;
+  githubUrl?: string | null;
+  twitterUrl?: string | null;
   postCount: number;
   totalVoteScore: number;
   totalCopies: number;
@@ -260,16 +266,47 @@ function ProfilePostCard({
   );
 }
 
-/* ===== Main Profile Client ===== */
-export default function ProfileClient({ profile, initialPosts }: { profile: ProfileData; initialPosts: PostData[] }) {
-  const [filter, setFilter] = useState<'all' | 'CODE' | 'PROMPT'>('all');
-  const [posts, setPosts] = useState(initialPosts);
-  const [editingPost, setEditingPost] = useState<PostData | null>(null);
+interface CollectionData {
+  id: string;
+  name: string;
+  description?: string;
+  isPublic?: boolean;
+  count: number;
+}
 
-  const handleFilterChange = async (newFilter: 'all' | 'CODE' | 'PROMPT') => {
+/* ===== Main Profile Client ===== */
+export default function ProfileClient({
+  profile,
+  initialPosts,
+  initialCollections = [],
+}: {
+  profile: ProfileData;
+  initialPosts: PostData[];
+  initialCollections?: CollectionData[];
+}) {
+  const [filter, setFilter] = useState<'all' | 'CODE' | 'PROMPT' | 'COLLECTIONS'>('all');
+  const [posts, setPosts] = useState(initialPosts);
+  const [collections, setCollections] = useState<CollectionData[]>(initialCollections);
+  const [editingPost, setEditingPost] = useState<PostData | null>(null);
+  const [copiedColId, setCopiedColId] = useState<string | null>(null);
+
+  const handleFilterChange = async (newFilter: 'all' | 'CODE' | 'PROMPT' | 'COLLECTIONS') => {
     setFilter(newFilter);
-    const result = await getMyPosts(newFilter === 'all' ? undefined : newFilter);
-    setPosts(result);
+    if (newFilter !== 'COLLECTIONS') {
+      const result = await getMyPosts(newFilter === 'all' ? undefined : newFilter);
+      setPosts(result);
+    }
+  };
+
+  const handleCopyColLink = async (colId: string) => {
+    const url = `${window.location.origin}/collections/${colId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedColId(colId);
+      setTimeout(() => setCopiedColId(null), 2500);
+    } catch {
+      alert(`ลิงก์สำหรับแชร์: ${url}`);
+    }
   };
 
   const handleDelete = async (postId: string) => {
@@ -279,7 +316,7 @@ export default function ProfileClient({ profile, initialPosts }: { profile: Prof
   };
 
   const handleEditSuccess = async () => {
-    const result = await getMyPosts(filter === 'all' ? undefined : filter);
+    const result = await getMyPosts(filter === 'all' || filter === 'COLLECTIONS' ? undefined : filter);
     setPosts(result);
     setEditingPost(null);
   };
@@ -330,18 +367,36 @@ export default function ProfileClient({ profile, initialPosts }: { profile: Prof
               <span className="profile-stat-value">{profile.totalPoints.toLocaleString()}</span>
             </div>
           </div>
+
+          {(profile.githubUrl || profile.twitterUrl) && (
+            <div className="profile-socials" style={{ marginTop: '20px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              {profile.githubUrl && (
+                <a href={profile.githubUrl} target="_blank" rel="noreferrer" className="btn btn-icon" title="GitHub">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+                </a>
+              )}
+              {profile.twitterUrl && (
+                <a href={profile.twitterUrl} target="_blank" rel="noreferrer" className="btn btn-icon" title="X (Twitter)">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                </a>
+              )}
+            </div>
+          )}
         </div>
       </aside>
 
-      {/* Right content - My posts */}
+      {/* Right content - My posts / Collections */}
       <div className="profile-content">
         <div className="profile-posts-header">
-          <h2 className="profile-posts-title">โพสต์ของฉัน</h2>
+          <h2 className="profile-posts-title">
+            {filter === 'COLLECTIONS' ? 'คอลเลกชันของฉัน' : 'โพสต์ของฉัน'}
+          </h2>
           <div className="profile-posts-filters">
             {[
               { key: 'all' as const, label: 'ทั้งหมด' },
               { key: 'CODE' as const, label: 'Code Snippets' },
               { key: 'PROMPT' as const, label: 'AI Prompts' },
+              { key: 'COLLECTIONS' as const, label: 'คอลเลกชัน' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -354,7 +409,104 @@ export default function ProfileClient({ profile, initialPosts }: { profile: Prof
           </div>
         </div>
 
-        {posts.length === 0 ? (
+        {filter === 'COLLECTIONS' ? (
+          collections.length === 0 ? (
+            <div className="empty-state">
+              <p>ยังไม่มีคอลเลกชัน</p>
+              <Link href="/bookmarks" style={{ color: 'var(--primary)', fontSize: '13px', textDecoration: 'none', fontWeight: 600, marginTop: '8px', display: 'inline-block' }}>
+                ไปที่หน้าบุ๊กมาร์กเพื่อสร้างคอลเลกชัน →
+              </Link>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+              {collections.map((col) => (
+                <div
+                  key={col.id}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          background: col.isPublic ? 'rgba(16, 185, 129, 0.1)' : 'rgba(156, 163, 175, 0.1)',
+                          color: col.isPublic ? '#10b981' : 'var(--text-muted)',
+                        }}
+                      >
+                        {col.isPublic ? <Globe size={11} /> : <Lock size={11} />}
+                        {col.isPublic ? 'สาธารณะ' : 'ส่วนตัว'}
+                      </span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{col.count} โพสต์</span>
+                    </div>
+
+                    <Link href={`/collections/${col.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
+                        {col.name}
+                      </h3>
+                    </Link>
+                    {col.description && (
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {col.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '16px', borderTop: '1px solid var(--border-default)', paddingTop: '12px' }}>
+                    <Link
+                      href={`/collections/${col.id}`}
+                      style={{
+                        flex: 1,
+                        textAlign: 'center',
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        textDecoration: 'none',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      ดูคอลเลกชัน
+                    </Link>
+                    <button
+                      onClick={() => handleCopyColLink(col.id)}
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        background: copiedColId === col.id ? '#10b981' : 'var(--primary)',
+                        color: 'white',
+                        border: 'none',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {copiedColId === col.id ? <Check size={14} /> : <Share2 size={14} />}
+                      {copiedColId === col.id ? 'ก๊อปแล้ว' : 'แชร์'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : posts.length === 0 ? (
           <div className="empty-state">
             <p>ยังไม่มีโพสต์</p>
           </div>

@@ -191,7 +191,7 @@ export async function searchTags(query: string) {
   const lowerQuery = trimmed.toLowerCase();
   const matchingTags = Object.entries(tagCounts)
     .filter(([tag]) => tag.toLowerCase().includes(lowerQuery))
-    .map(([name, count]) => ({ name: `#${name}`, count }))
+    .map(([name, count]) => ({ name: name.replace(/^#/, ''), count }))
     .sort((a, b) => b.count - a.count);
 
   return matchingTags;
