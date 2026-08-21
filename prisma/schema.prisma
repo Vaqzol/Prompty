@@ -63,6 +63,11 @@ model User {
   theme           String  @default("light") // "light" | "dark" | "system"
   codeTheme       String  @default("vs-code-dark-modern")
 
+  // MFA / 2FA fields
+  mfaEnabled      Boolean  @default(false)
+  mfaSecret       String?  // Encrypted TOTP secret
+  mfaBackupCodes  String[] // Hashed backup codes (8 total)
+
   accounts      Account[]
   sessions      Session[]
   posts         Post[]

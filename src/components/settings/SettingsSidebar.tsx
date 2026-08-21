@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, Users, Bell, Palette } from 'lucide-react';
+import { User, Users, Bell, Palette, Shield } from 'lucide-react';
 
 const SETTINGS_MENU = [
   { label: 'โปรไฟล์', href: '/settings/profile', icon: User },
   { label: 'บัญชี', href: '/settings/account', icon: Users },
   { label: 'การแจ้งเตือน', href: '/settings/notifications', icon: Bell },
   { label: 'การแสดงผล/ธีม', href: '/settings/appearance', icon: Palette },
+  { label: 'ความปลอดภัย', href: '/settings/security', icon: Shield },
 ];
 
 export default function SettingsSidebar() {

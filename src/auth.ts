@@ -23,6 +23,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        // ช่อง mfaVerified พิเศษสำหรับ step 2 (ไม่แสดงใน UI ปกติ)
+        mfaVerified: { label: 'MFA Verified', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -31,6 +33,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          select: {
+            id: true, name: true, email: true, image: true, role: true,
+            status: true, emailVerified: true, passwordHash: true, mfaEnabled: true,
+          },
         });
 
         if (!user || !user.passwordHash) {
@@ -54,12 +60,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new CustomAuthError('อีเมลหรือรหัสผ่านไม่ถูกต้อง');
         }
 
+        // ถ้าเปิด MFA → ส่ง flag กลับเพื่อให้ JWT รู้ว่าต้อง verify OTP ก่อน
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           image: user.image,
           role: user.role,
+          requiresMfa: user.mfaEnabled,
+          mfaVerified: user.mfaEnabled ? false : true, // ถ้าไม่เปิด MFA ถือว่า verified แล้ว
         };
       },
     }),
@@ -68,7 +77,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as { role?: string }).role || 'USER';
+        token.role = (user as any).role || 'USER';
+        token.requiresMfa = (user as any).requiresMfa ?? false;
+        token.mfaVerified = (user as any).mfaVerified ?? true;
       }
       return token;
     },
@@ -86,8 +97,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (session.user as any).role = (token.role as string) || 'USER';
           (session.user as any).status = 'ACTIVE';
         }
+        (session.user as any).requiresMfa = token.requiresMfa ?? false;
+        (session.user as any).mfaVerified = token.mfaVerified ?? true;
       }
       return session;
     },
   },
 });
+

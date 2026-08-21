@@ -8,6 +8,7 @@ const publicPaths = [
   '/login',
   '/register',
   '/verify-email',
+  '/verify-mfa',
   '/register/success',
   '/forgot-password',
   '/reset-password',
@@ -42,6 +43,16 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?error=banned', request.url));
     }
     // Stay on /login with error message, do NOT redirect to /
+    return NextResponse.next();
+  }
+
+  // ── 0b. MFA Verification Check ──
+  const requiresMfa = (user as any)?.requiresMfa;
+  const mfaVerified = (user as any)?.mfaVerified;
+  if (session && requiresMfa && !mfaVerified) {
+    if (pathname !== '/verify-mfa' && !pathname.startsWith('/api/auth')) {
+      return NextResponse.redirect(new URL('/verify-mfa', request.url));
+    }
     return NextResponse.next();
   }
 
