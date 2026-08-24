@@ -94,11 +94,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           (session.user as any).role = dbUser?.role || (token.role as string) || 'USER';
           (session.user as any).status = dbUser?.status || 'ACTIVE';
 
-          // ── MFA verification check (DB-backed) ──
+          // ── MFA verification check (DB-backed, per-session) ──
           const requiresMfa = dbUser?.mfaEnabled ?? false;
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          // เปรียบเทียบกับเวลาที่ JWT นี้ถูกออก (iat) เพื่อให้ verify ทุก login ใหม่
+          const sessionIssuedAt = new Date((token.iat as number) * 1000);
           const mfaVerified = !requiresMfa ||
-            (dbUser?.mfaVerifiedAt != null && dbUser.mfaVerifiedAt > thirtyDaysAgo);
+            (dbUser?.mfaVerifiedAt != null && dbUser.mfaVerifiedAt > sessionIssuedAt);
           (session.user as any).requiresMfa = requiresMfa;
           (session.user as any).mfaVerified = mfaVerified;
         } catch {
