@@ -86,6 +86,7 @@ export async function confirmEnableMfa(
         mfaEnabled: true,
         mfaSecret: encryptSecret(tempSecret),
         mfaBackupCodes: hashedCodes,
+        mfaVerifiedAt: new Date(), // ถือว่า verify แล้ว ณ ตอนที่ setup เสร็จ
       },
     });
 
@@ -122,7 +123,7 @@ export async function disableMfa(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [] },
+      data: { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [], mfaVerifiedAt: null },
     });
 
     return { success: true };

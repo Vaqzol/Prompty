@@ -64,9 +64,10 @@ model User {
   codeTheme       String  @default("vs-code-dark-modern")
 
   // MFA / 2FA fields
-  mfaEnabled      Boolean  @default(false)
-  mfaSecret       String?  // Encrypted TOTP secret
-  mfaBackupCodes  String[] // Hashed backup codes (8 total)
+  mfaEnabled      Boolean   @default(false)
+  mfaSecret       String?   // Encrypted TOTP secret
+  mfaBackupCodes  String[]  // Hashed backup codes (8 total)
+  mfaVerifiedAt   DateTime? // เวลาที่ verify MFA ล่าสุด — ใช้ตรวจสอบแทนการ re-encode JWT
 
   accounts      Account[]
   sessions      Session[]

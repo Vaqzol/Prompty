@@ -89,16 +89,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         try {
           const dbUser = await prisma.user.findUnique({
             where: { id: token.id as string },
-            select: { role: true, status: true },
+            select: { role: true, status: true, mfaEnabled: true, mfaVerifiedAt: true },
           });
           (session.user as any).role = dbUser?.role || (token.role as string) || 'USER';
           (session.user as any).status = dbUser?.status || 'ACTIVE';
+
+          // ── MFA verification check (DB-backed) ──
+          const requiresMfa = dbUser?.mfaEnabled ?? false;
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          const mfaVerified = !requiresMfa ||
+            (dbUser?.mfaVerifiedAt != null && dbUser.mfaVerifiedAt > thirtyDaysAgo);
+          (session.user as any).requiresMfa = requiresMfa;
+          (session.user as any).mfaVerified = mfaVerified;
         } catch {
           (session.user as any).role = (token.role as string) || 'USER';
           (session.user as any).status = 'ACTIVE';
+          (session.user as any).requiresMfa = false;
+          (session.user as any).mfaVerified = true;
         }
-        (session.user as any).requiresMfa = token.requiresMfa ?? false;
-        (session.user as any).mfaVerified = token.mfaVerified ?? true;
       }
       return session;
     },
