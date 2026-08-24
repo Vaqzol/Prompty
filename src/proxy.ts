@@ -50,7 +50,11 @@ export async function proxy(request: NextRequest) {
   const requiresMfa = (user as any)?.requiresMfa;
   const mfaVerified = (user as any)?.mfaVerified;
   if (session && requiresMfa && !mfaVerified) {
-    if (pathname !== '/verify-mfa' && !pathname.startsWith('/api/auth')) {
+    if (
+      pathname !== '/verify-mfa' &&
+      !pathname.startsWith('/api/auth') &&
+      !pathname.startsWith('/api/mfa') // ← อนุญาตให้เรียก MFA API ได้ขณะรอ verify
+    ) {
       return NextResponse.redirect(new URL('/verify-mfa', request.url));
     }
     return NextResponse.next();
