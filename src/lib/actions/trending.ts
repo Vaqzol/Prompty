@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { CATEGORIES } from '@/lib/constants/categories';
+import { unstable_cache } from 'next/cache';
 
 // Helper to filter date by period
 function getDateFromPeriod(period: 'week' | 'month' | 'all') {
@@ -76,13 +77,11 @@ export async function getTrendingPosts(
 // ─────────────────────────────────────────────
 // 2. Top Contributors Leaderboard
 // ─────────────────────────────────────────────
-export async function getTopContributors(
-  limit: number = 5,
-  period: 'week' | 'month' | 'all' = 'week'
-) {
-  const dateFrom = getDateFromPeriod(period);
-
-  const users = await prisma.user.findMany({
+// ── Cached: อัปเดตทุก 5 นาที ──
+const _getTopContributors = unstable_cache(
+  async (limit: number, period: 'week' | 'month' | 'all') => {
+    const dateFrom = getDateFromPeriod(period);
+    const users = await prisma.user.findMany({
     where: {
       role: 'USER',
       status: { not: 'BANNED' },
@@ -120,8 +119,18 @@ export async function getTopContributors(
     };
   });
 
-  scored.sort((a, b) => b.totalScore - a.totalScore);
-  return scored.slice(0, limit);
+    scored.sort((a, b) => b.totalScore - a.totalScore);
+    return scored.slice(0, limit);
+  },
+  ['top-contributors'],
+  { revalidate: 300 } // 5 นาที
+);
+
+export async function getTopContributors(
+  limit: number = 5,
+  period: 'week' | 'month' | 'all' = 'week'
+) {
+  return _getTopContributors(limit, period);
 }
 
 // ─────────────────────────────────────────────
@@ -249,7 +258,9 @@ export async function getCurrentUserRank(
 // ─────────────────────────────────────────────
 // 3. All Tags with Post Count
 // ─────────────────────────────────────────────
-export async function getAllTags() {
+// ── Cached: อัปเดตทุก 10 นาที ──
+export const getAllTags = unstable_cache(
+  async () => {
   const [posts, hiddenTags] = await Promise.all([
     prisma.post.findMany({
       select: { tags: true },
@@ -279,7 +290,10 @@ export async function getAllTags() {
 
   result.sort((a, b) => b.count - a.count);
   return result;
-}
+  },
+  ['all-tags'],
+  { revalidate: 600 } // 10 นาที
+);
 
 // ─────────────────────────────────────────────
 // 4. Posts by Tag
@@ -338,7 +352,9 @@ export async function getPostsByTag(
 // ─────────────────────────────────────────────
 // 5. All Categories
 // ─────────────────────────────────────────────
-export async function getAllCategories() {
+// ── Cached: อัปเดตทุก 1 ชั่วโมง ──
+export const getAllCategories = unstable_cache(
+  async () => {
   const posts = await prisma.post.findMany({
     select: { tags: true },
   });
@@ -357,7 +373,10 @@ export async function getAllCategories() {
       postCount: count,
     };
   });
-}
+  },
+  ['all-categories'],
+  { revalidate: 3600 } // 1 ชั่วโมง
+);
 
 // ─────────────────────────────────────────────
 // 6. Posts by Category

@@ -3,9 +3,11 @@ import TrendingClient from './TrendingClient';
 import { auth } from '@/auth';
 import { getTrendingPosts, getTopContributors } from '@/lib/actions/trending';
 
+export const revalidate = 120; // 2 นาที
+
 export default async function TrendingPage() {
-  const session = await auth();
-  const [posts, contributors] = await Promise.all([
+  const [session, posts, contributors] = await Promise.all([
+    auth(),
     getTrendingPosts('all'),
     getTopContributors(5),
   ]);

@@ -3,9 +3,11 @@ import TagsClient from './TagsClient';
 import { auth } from '@/auth';
 import { getAllTags, getTopContributors } from '@/lib/actions/trending';
 
+export const revalidate = 600; // 10 นาที
+
 export default async function TagsPage() {
-  const session = await auth();
-  const [tags, contributors] = await Promise.all([
+  const [session, tags, contributors] = await Promise.all([
+    auth(),
     getAllTags(),
     getTopContributors(5),
   ]);

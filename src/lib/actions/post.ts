@@ -50,6 +50,8 @@ export async function createPost(data: {
   });
 
   revalidatePath('/');
+  revalidatePath('/trending');
+  revalidatePath('/tags');
   return { success: true, postId: post.id };
 }
 

@@ -3,9 +3,11 @@ import CategoriesClient from './CategoriesClient';
 import { auth } from '@/auth';
 import { getAllCategories, getTopContributors } from '@/lib/actions/trending';
 
+export const revalidate = 3600; // 1 ชั่วโมง
+
 export default async function CategoriesPage() {
-  const session = await auth();
-  const [categories, contributors] = await Promise.all([
+  const [session, categories, contributors] = await Promise.all([
+    auth(),
     getAllCategories(),
     getTopContributors(5),
   ]);
