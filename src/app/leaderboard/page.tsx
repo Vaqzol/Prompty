@@ -3,8 +3,6 @@ import LeaderboardClient from './LeaderboardClient';
 import { auth } from '@/auth';
 import { getLeaderboard, getCurrentUserRank } from '@/lib/actions/trending';
 
-export const revalidate = 300; // 5 นาที
-
 export default async function LeaderboardPage() {
   const session = await auth();
   const userId = session?.user?.id;
