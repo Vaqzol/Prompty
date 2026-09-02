@@ -53,7 +53,8 @@ export async function proxy(request: NextRequest) {
     if (
       pathname !== '/verify-mfa' &&
       !pathname.startsWith('/api/auth') &&
-      !pathname.startsWith('/api/mfa') // ← อนุญาตให้เรียก MFA API ได้ขณะรอ verify
+      !pathname.startsWith('/api/mfa') && // ← อนุญาตให้เรียก MFA API ได้ขณะรอ verify
+      !pathname.startsWith('/api/ai') // ← AI API ใช้ได้ทั้งก่อนและหลัง MFA
     ) {
       return NextResponse.redirect(new URL('/verify-mfa', request.url));
     }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Code2, Sparkles, ChevronDown, ImageIcon, Send, Loader2 } from 'lucide-react';
+import { X, Code2, Sparkles, ChevronDown, ImageIcon, Send, Loader2, Wand2, Tags } from 'lucide-react';
 import { createPost, updatePost } from '@/lib/actions/post';
 import hljs from 'highlight.js';
 import Editor from 'react-simple-code-editor';
@@ -72,6 +72,14 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
   const [error, setError] = useState('');
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+
+  // AI states
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [enhancedContent, setEnhancedContent] = useState('');
+  const [showEnhancePreview, setShowEnhancePreview] = useState(false);
+  const [isSuggestingTags, setIsSuggestingTags] = useState(false);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [aiError, setAiError] = useState('');
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -150,6 +158,71 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((t) => t !== tagToRemove));
+  };
+
+  // ── AI: ปรับปรุง Prompt ──
+  const handleEnhance = async () => {
+    if (!content.trim()) {
+      setAiError('กรุณากรอกเนื้อหาก่อนใช้ AI');
+      return;
+    }
+    setAiError('');
+    setIsEnhancing(true);
+    try {
+      const res = await fetch('/api/ai/enhance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: content.trim(), type: activeTab }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      setEnhancedContent(data.enhancedContent);
+      setShowEnhancePreview(true);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI ไม่สามารถประมวลผลได้');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleAcceptEnhance = () => {
+    setContent(enhancedContent);
+    setShowEnhancePreview(false);
+    setEnhancedContent('');
+  };
+
+  // ── AI: แนะนำ Tags ──
+  const handleSuggestTags = async () => {
+    if (!title.trim() && !content.trim()) {
+      setAiError('กรุณากรอกชื่อเรื่องหรือเนื้อหาก่อน');
+      return;
+    }
+    setAiError('');
+    setIsSuggestingTags(true);
+    setSuggestedTags([]);
+    try {
+      const res = await fetch('/api/ai/suggest-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, content, type: activeTab }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      // กรอง tags ที่มีอยู่แล้วออก
+      const newTags = (data.tags || []).filter((t: string) => !tags.includes(t));
+      setSuggestedTags(newTags);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI ไม่สามารถแนะนำแท็กได้');
+    } finally {
+      setIsSuggestingTags(false);
+    }
+  };
+
+  const handleAddSuggestedTag = (tag: string) => {
+    if (!tags.includes(tag)) {
+      setTags([...tags, tag]);
+    }
+    setSuggestedTags(suggestedTags.filter((t) => t !== tag));
   };
 
   const handleSubmit = async () => {
@@ -344,6 +417,19 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                       placeholder="วางโค้ดของคุณที่นี่..."
                     />
                   </div>
+                  <button
+                    type="button"
+                    className="ai-enhance-btn"
+                    onClick={handleEnhance}
+                    disabled={isEnhancing || !content.trim()}
+                    title="AI ปรับปรุง Code"
+                  >
+                    {isEnhancing ? (
+                      <><Loader2 size={14} className="spin" /> กำลังปรับปรุง...</>
+                    ) : (
+                      <><Wand2 size={14} /> ✨ AI ปรับปรุง Code</>
+                    )}
+                  </button>
                 </div>
               </>
             )}
@@ -359,6 +445,19 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                     onChange={(e) => setContent(e.target.value)}
                     rows={5}
                   />
+                  <button
+                    type="button"
+                    className="ai-enhance-btn"
+                    onClick={handleEnhance}
+                    disabled={isEnhancing || !content.trim()}
+                    title="AI ปรับปรุง Prompt"
+                  >
+                    {isEnhancing ? (
+                      <><Loader2 size={14} className="spin" /> กำลังปรับปรุง...</>
+                    ) : (
+                      <><Wand2 size={14} /> ✨ AI ปรับปรุง Prompt</>
+                    )}
+                  </button>
                 </div>
 
                 <div className="modal-prompt-upload">
@@ -401,12 +500,47 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyDown={handleAddTag}
               />
+              <button
+                type="button"
+                className="ai-suggest-tags-btn"
+                onClick={handleSuggestTags}
+                disabled={isSuggestingTags || (!title.trim() && !content.trim())}
+                title="AI แนะนำ Tags"
+              >
+                {isSuggestingTags ? (
+                  <><Loader2 size={12} className="spin" /> AI...</>
+                ) : (
+                  <><Tags size={12} /> AI แนะนำ</>
+                )}
+              </button>
+            </div>
+            <div className="modal-tags-list">
               {tags.map((tag) => (
                 <span key={tag} className="modal-tag-pill" onClick={() => handleRemoveTag(tag)}>
                   #{tag} <X size={12} />
                 </span>
               ))}
             </div>
+            {/* AI suggested tags */}
+            {suggestedTags.length > 0 && (
+              <div className="ai-suggested-tags">
+                <span className="ai-suggested-label">AI แนะนำ:</span>
+                {suggestedTags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="ai-suggested-tag-pill"
+                    onClick={() => handleAddSuggestedTag(tag)}
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+            )}
+            {/* AI error */}
+            {aiError && (
+              <div className="ai-error-message">{aiError}</div>
+            )}
           </div>
 
           <div className="modal-actions">
@@ -428,6 +562,32 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
             </button>
           </div>
         </div>
+
+        {/* ── AI Enhance Preview Popup ── */}
+        {showEnhancePreview && (
+          <div className="ai-enhance-overlay" onClick={() => setShowEnhancePreview(false)}>
+            <div className="ai-enhance-popup" onClick={(e) => e.stopPropagation()}>
+              <div className="ai-enhance-header">
+                <h3>✨ AI ปรับปรุงแล้ว</h3>
+                <button onClick={() => setShowEnhancePreview(false)}><X size={18} /></button>
+              </div>
+              <div className="ai-enhance-compare">
+                <div className="ai-enhance-col">
+                  <span className="ai-enhance-label">ก่อน</span>
+                  <pre className="ai-enhance-content original">{content}</pre>
+                </div>
+                <div className="ai-enhance-col">
+                  <span className="ai-enhance-label">หลัง (AI)</span>
+                  <pre className="ai-enhance-content enhanced">{enhancedContent}</pre>
+                </div>
+              </div>
+              <div className="ai-enhance-actions">
+                <button className="ai-enhance-cancel" onClick={() => setShowEnhancePreview(false)}>ยกเลิก</button>
+                <button className="ai-enhance-accept" onClick={handleAcceptEnhance}>✨ ใช้ Prompt ใหม่</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
