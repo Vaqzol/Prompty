@@ -21,37 +21,22 @@ export async function enhancePrompt(
 
   const systemPrompt =
     type === 'PROMPT'
-      ? `You are an expert AI prompt engineer. Your job is to take a user's simple prompt and enhance it to produce better results with AI image generators like Midjourney, DALL·E, and Stable Diffusion.
+      ? `You are an AI prompt engineer. Enhance the user's simple prompt for AI image generators (Midjourney, DALL·E, Stable Diffusion).
+Rules: Keep original intent. Add style, lighting, quality details. Output ONLY the enhanced prompt in English. Max 80 words. No quotes. No explanation.`
+      : `You are a code reviewer. Improve the given code: add concise English comments, fix obvious issues, keep same functionality.
+Output ONLY the improved code. No markdown blocks. No explanation.`;
 
-Rules:
-- Keep the original intent and subject
-- Add details about style, lighting, composition, quality
-- Add relevant parameters (--ar, --style, etc.) if appropriate
-- Output ONLY the enhanced prompt, no explanations
-- Keep it concise but detailed (max 200 words)
-- Write in English even if input is in other languages
-- Do NOT wrap in quotes`
-      : `You are an expert code reviewer and optimizer. Your job is to improve the given code.
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nOriginal:\n${originalContent}` }] }],
+    generationConfig: {
+      maxOutputTokens: 400, // จำกัดความยาว → เร็วขึ้นมาก
+      temperature: 0.7,
+    },
+  });
 
-Rules:
-- Add helpful comments in English
-- Improve code quality and readability
-- Fix any obvious bugs or anti-patterns
-- Keep the same functionality
-- Output ONLY the improved code, no explanations
-- Do NOT wrap in markdown code blocks`;
-
-  const prompt = `${systemPrompt}\n\nOriginal:\n${originalContent}`;
-
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text();
-
-  if (!text) {
-    throw new Error('AI ไม่สามารถสร้างผลลัพธ์ได้');
-  }
-
-  return text.trim();
+  const text = result.response.text()?.trim();
+  if (!text) throw new Error('AI ไม่สามารถสร้างผลลัพธ์ได้');
+  return text;
 }
 
 // ─────────────────────────────────────────────
@@ -68,26 +53,21 @@ export async function suggestTags(
 
   const systemPrompt =
     type === 'CODE'
-      ? `Analyze the following code snippet and suggest 3-5 relevant tags.
-Focus on: programming language, framework, library, concept, use case.
-Return ONLY a JSON array of tag strings, nothing else.
-Example: ["Python", "FastAPI", "REST API", "Backend"]
-Do NOT include # symbol in tags.`
-      : `Analyze the following AI prompt and suggest 3-5 relevant tags.
-Focus on: AI model, art style, subject, technique, mood.
-Return ONLY a JSON array of tag strings, nothing else.
-Example: ["Midjourney", "Cyberpunk", "Character Design", "Neon"]
-Do NOT include # symbol in tags.`;
+      ? `Suggest 3-5 tags for this code. Focus on: language, framework, concept. Return ONLY a JSON array. Example: ["Python","FastAPI","Backend"]. No # symbol.`
+      : `Suggest 3-5 tags for this AI prompt. Focus on: AI model, style, subject. Return ONLY a JSON array. Example: ["Midjourney","Cyberpunk","Neon"]. No # symbol.`;
 
-  const prompt = `${systemPrompt}\n\nTitle: ${title}\nContent: ${content}`;
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nTitle: ${title}\nContent: ${content}` }] }],
+    generationConfig: {
+      maxOutputTokens: 100, // tags สั้นมาก ไม่ต้องการ tokens เยอะ
+      temperature: 0.3,
+    },
+  });
 
-  const result = await model.generateContent(prompt);
-  const response = result.response;
-  const text = response.text().trim();
+  const text = result.response.text()?.trim() ?? '';
 
   // Parse JSON array from response
   try {
-    // ลอง clean markdown code block ถ้ามี
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const tags = JSON.parse(cleaned);
     if (Array.isArray(tags)) {
@@ -98,7 +78,6 @@ Do NOT include # symbol in tags.`;
         .slice(0, 5);
     }
   } catch {
-    // ถ้า parse JSON ไม่ได้ ลอง split ด้วย comma
     return text
       .replace(/[\[\]"']/g, '')
       .split(',')
