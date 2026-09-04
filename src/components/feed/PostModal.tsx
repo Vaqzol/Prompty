@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Code2, Sparkles, ChevronDown, ImageIcon, Send, Loader2, Wand2, Tags } from 'lucide-react';
 import { createPost, updatePost } from '@/lib/actions/post';
 import hljs from 'highlight.js';
@@ -80,6 +80,29 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
   const [isSuggestingTags, setIsSuggestingTags] = useState(false);
   const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
   const [aiError, setAiError] = useState('');
+  const [aiCooldown, setAiCooldown] = useState(0); // seconds remaining
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Countdown timer for rate limit cooldown
+  useEffect(() => {
+    if (aiCooldown <= 0) return;
+    cooldownRef.current = setInterval(() => {
+      setAiCooldown((s) => {
+        if (s <= 1) {
+          clearInterval(cooldownRef.current!);
+          setAiError('');
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(cooldownRef.current!);
+  }, [aiCooldown > 0]);
+
+  const startCooldown = (seconds = 60) => {
+    clearInterval(cooldownRef.current!);
+    setAiCooldown(seconds);
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -179,7 +202,9 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
       setEnhancedContent(data.enhancedContent);
       setShowEnhancePreview(true);
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'AI ไม่สามารถประมวลผลได้');
+      const msg = err instanceof Error ? err.message : 'AI ไม่สามารถประมวลผลได้';
+      setAiError(msg);
+      if (msg.includes('บ่อยเกินไป')) startCooldown(60);
     } finally {
       setIsEnhancing(false);
     }
@@ -212,7 +237,9 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
       const newTags = (data.tags || []).filter((t: string) => !tags.includes(t));
       setSuggestedTags(newTags);
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'AI ไม่สามารถแนะนำแท็กได้');
+      const msg = err instanceof Error ? err.message : 'AI ไม่สามารถแนะนำแท็กได้';
+      setAiError(msg);
+      if (msg.includes('บ่อยเกินไป')) startCooldown(60);
     } finally {
       setIsSuggestingTags(false);
     }
@@ -421,10 +448,12 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                     type="button"
                     className="ai-enhance-btn"
                     onClick={handleEnhance}
-                    disabled={isEnhancing || !content.trim()}
+                    disabled={isEnhancing || !content.trim() || aiCooldown > 0}
                     title="AI ปรับปรุง Code"
                   >
-                    {isEnhancing ? (
+                    {aiCooldown > 0 ? (
+                      <>⏳ รอ {aiCooldown}s</>
+                    ) : isEnhancing ? (
                       <><Loader2 size={14} className="spin" /> กำลังปรับปรุง...</>
                     ) : (
                       <><Wand2 size={14} /> ✨ AI ปรับปรุง Code</>
@@ -449,10 +478,12 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                     type="button"
                     className="ai-enhance-btn"
                     onClick={handleEnhance}
-                    disabled={isEnhancing || !content.trim()}
+                    disabled={isEnhancing || !content.trim() || aiCooldown > 0}
                     title="AI ปรับปรุง Prompt"
                   >
-                    {isEnhancing ? (
+                    {aiCooldown > 0 ? (
+                      <>⏳ รอ {aiCooldown}s</>
+                    ) : isEnhancing ? (
                       <><Loader2 size={14} className="spin" /> กำลังปรับปรุง...</>
                     ) : (
                       <><Wand2 size={14} /> ✨ AI ปรับปรุง Prompt</>
@@ -504,10 +535,12 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
                 type="button"
                 className="ai-suggest-tags-btn"
                 onClick={handleSuggestTags}
-                disabled={isSuggestingTags || (!title.trim() && !content.trim())}
+                disabled={isSuggestingTags || (!title.trim() && !content.trim()) || aiCooldown > 0}
                 title="AI แนะนำ Tags"
               >
-                {isSuggestingTags ? (
+                {aiCooldown > 0 ? (
+                  <>⏳ {aiCooldown}s</>
+                ) : isSuggestingTags ? (
                   <><Loader2 size={12} className="spin" /> AI...</>
                 ) : (
                   <><Tags size={12} /> AI แนะนำ</>
