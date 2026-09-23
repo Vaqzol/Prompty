@@ -1,8 +1,8 @@
 'use server';
 
-import { auth } from '@/auth';
+import { verifiedSession as auth } from '@/lib/session';
 import { prisma } from '../prisma';
-import { createNotification } from './notification';
+import { createNotification } from '@/lib/notifications';
 
 export async function toggleFollow(followingId: string) {
   try {

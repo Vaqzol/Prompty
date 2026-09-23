@@ -1,0 +1,7 @@
+import type { DefaultSession } from 'next-auth';
+declare module 'next-auth' {
+  interface Session {
+    user: DefaultSession['user'] & { id: string; role: string; status: string; requiresMfa: boolean; mfaVerified: boolean; sessionId: string };
+  }
+  interface User { credentialVersion?: string }
+}

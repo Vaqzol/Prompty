@@ -1,4 +1,4 @@
-import { generateSecret, generateSync, verifySync, generateURI } from 'otplib/functional';
+import { generateSecret, verifySync, generateURI } from 'otplib/functional';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -6,9 +6,10 @@ import bcrypt from 'bcryptjs';
 // ────────────────────────────────────────────
 // Encryption helpers (AES-256-GCM)
 // ────────────────────────────────────────────
-const ENCRYPTION_KEY = process.env.AUTH_SECRET || 'fallback-secret-key-32-chars-long!';
+const ENCRYPTION_KEY = process.env.AUTH_SECRET;
 
 function getKeyBuffer(): Buffer {
+  if (!ENCRYPTION_KEY) throw new Error('AUTH_SECRET is required');
   return crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
 }
 

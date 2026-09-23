@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // ใช้ gemini-3.6-flash — เร็ว ฟรี เหมาะกับงาน text
-const model = genAI.getGenerativeModel({ model: 'gemini-3.6-flash' });
+const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-3.6-flash' });
 
 // ─────────────────────────────────────────────
 // 1. AI ปรับปรุง Prompt
@@ -29,11 +29,12 @@ Output ONLY the improved code. No markdown blocks. No explanation.`;
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nOriginal:\n${originalContent}` }] }],
     generationConfig: {
-      maxOutputTokens: 400, // จำกัดความยาว → เร็วขึ้นมาก
+      maxOutputTokens: type === 'CODE' ? 4096 : 1024, // จำกัดความยาว → เร็วขึ้นมาก
       temperature: 0.7,
     },
   });
 
+  if (result.response.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('AI_OUTPUT_TRUNCATED');
   const text = result.response.text()?.trim();
   if (!text) throw new Error('AI ไม่สามารถสร้างผลลัพธ์ได้');
   return text;

@@ -44,8 +44,8 @@ export default function AddAdminModal({
       setError('กรุณากรอกอีเมล');
       return;
     }
-    if (!password || password.length < 6) {
-      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+    if (!password || password.length < 8) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร');
       return;
     }
 

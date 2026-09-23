@@ -54,7 +54,7 @@ export default function SecuritySettings() {
       setTempSecret(res.secret);
       setStep('qr');
     } else {
-      setError(res.error || 'เกิดข้อผิดพลาด');
+      setError(('error' in res ? res.error : '') || 'เกิดข้อผิดพลาด');
     }
     setLoading(false);
   };
@@ -70,7 +70,7 @@ export default function SecuritySettings() {
       setStatus({ enabled: true, hasBackupCodes: true });
       setStep('backup-codes');
     } else {
-      setError(res.error || 'รหัส OTP ไม่ถูกต้อง');
+      setError(('error' in res ? res.error : '') || 'รหัส OTP ไม่ถูกต้อง');
     }
     setLoading(false);
   };
@@ -86,7 +86,7 @@ export default function SecuritySettings() {
       setSuccess('ปิดการยืนยันตัวตน 2 ชั้นเรียบร้อยแล้ว');
       resetState();
     } else {
-      setError(res.error || 'เกิดข้อผิดพลาด');
+      setError(('error' in res ? res.error : '') || 'เกิดข้อผิดพลาด');
     }
     setLoading(false);
   };

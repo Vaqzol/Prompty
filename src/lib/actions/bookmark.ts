@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/auth';
+import { verifiedSession as auth } from '@/lib/session';
 import { prisma } from '../prisma';
 import { revalidatePath } from 'next/cache';
 
@@ -12,6 +12,7 @@ export async function toggleBookmark(postId: string, collectionId?: string) {
     }
 
     const userId = session.user.id;
+    if (collectionId && !await prisma.bookmarkCollection.findFirst({where: {id: collectionId, userId}})) return {success: false, error: 'ไม่พบคอลเลกชันของคุณ'};
 
     const existingBookmark = await prisma.bookmark.findUnique({
       where: {
@@ -231,6 +232,7 @@ export async function moveToCollection(bookmarkId: string, collectionId: string 
     const session = await auth();
     if (!session?.user?.id) return { success: false, error: 'ต้องเข้าสู่ระบบก่อน' };
 
+    if (collectionId && !await prisma.bookmarkCollection.findFirst({where: {id: collectionId, userId: session.user.id}})) return {success: false, error: 'ไม่พบคอลเลกชันของคุณ'};
     await prisma.bookmark.update({
       where: { id: bookmarkId, userId: session.user.id },
       data: { collectionId },

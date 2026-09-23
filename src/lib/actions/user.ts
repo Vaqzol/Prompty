@@ -1,17 +1,13 @@
 'use server';
 
-import { auth } from '@/auth';
+import { requireSession } from '@/lib/session';
 import { prisma } from '../prisma';
 import bcrypt from 'bcryptjs';
+import { validPassword } from '@/lib/security-tokens';
+import { rateLimit } from '@/lib/rate-limit';
 import { revalidatePath } from 'next/cache';
 
-async function getSession() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error('กรุณาเข้าสู่ระบบก่อน');
-  }
-  return session as typeof session & { user: { id: string } };
-}
+const getSession = requireSession;
 
 // ─────────────────────────────────────────────
 // อัปเดตโปรไฟล์
@@ -62,6 +58,7 @@ export async function updateProfile(data: {
 // ─────────────────────────────────────────────
 export async function changePassword(oldPassword: string, newPassword: string) {
   const session = await getSession();
+  await rateLimit('password-change', session.user.id, 5, 900);
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -72,13 +69,14 @@ export async function changePassword(oldPassword: string, newPassword: string) {
     return { success: false, error: 'บัญชีนี้ใช้ Social Login ไม่สามารถเปลี่ยนรหัสผ่านได้' };
   }
 
+  if (typeof oldPassword !== 'string' || Buffer.byteLength(oldPassword, 'utf8') > 72) return {success: false, error: 'รหัสผ่านเดิมไม่ถูกต้อง'};
   const isMatch = await bcrypt.compare(oldPassword, user.passwordHash);
   if (!isMatch) {
     return { success: false, error: 'รหัสผ่านเดิมไม่ถูกต้อง' };
   }
 
-  if (newPassword.length < 6) {
-    return { success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร' };
+  if (!validPassword(newPassword)) {
+    return { success: false, error: 'รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร และไม่เกิน 72 ไบต์' };
   }
 
   const hash = await bcrypt.hash(newPassword, 12);
@@ -117,10 +115,21 @@ export async function updatePreferences(data: {
 }) {
   const session = await getSession();
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data,
-  });
+  const allowed = ['notifyComments','notifyVotes','notifyFollowers','notifyDigest','notifySecurity','theme','codeTheme'];
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !allowed.includes(k))) throw new Error('ข้อมูลการตั้งค่าไม่ถูกต้อง');
+  const clean: typeof data = {};
+  for (const key of ['notifyComments','notifyVotes','notifyFollowers','notifyDigest','notifySecurity'] as const) {
+    if (data[key] !== undefined) { if (typeof data[key] !== 'boolean') throw new Error('ข้อมูลการตั้งค่าไม่ถูกต้อง'); clean[key] = data[key]; }
+  }
+  if (data.theme !== undefined) {
+    if (!['light','dark','system'].includes(data.theme)) throw new Error('ธีมไม่ถูกต้อง');
+    clean.theme = data.theme;
+  }
+  if (data.codeTheme !== undefined) {
+    if (!['vs-code-dark-modern','VS Code Dark Modern','GitHub Dark','Monokai','One Dark Pro','Night Owl'].includes(data.codeTheme)) throw new Error('ธีมโค้ดไม่ถูกต้อง');
+    clean.codeTheme = data.codeTheme;
+  }
+  await prisma.user.update({where: {id: session.user.id}, data: clean});
 
   revalidatePath('/settings/notifications');
   revalidatePath('/settings/appearance');

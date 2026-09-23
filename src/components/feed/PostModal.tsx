@@ -126,7 +126,8 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
     formData.append('file', file);
     const res = await fetch('/api/upload', { method: 'POST', body: formData });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'อัปโหลดไม่สำเร็จ');
+    if (res.status === 429 && typeof data.retryAfter === 'number') startCooldown(data.retryAfter);
+      if (!res.ok) throw new Error(data.error || 'อัปโหลดไม่สำเร็จ');
     return data.url as string;
   };
 
@@ -198,13 +199,14 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
         body: JSON.stringify({ content: content.trim(), type: activeTab }),
       });
       const data = await res.json();
+      if (res.status === 429 && typeof data.retryAfter === 'number') startCooldown(data.retryAfter);
       if (!res.ok) throw new Error(data.error || 'AI error');
       setEnhancedContent(data.enhancedContent);
       setShowEnhancePreview(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'AI ไม่สามารถประมวลผลได้';
       setAiError(msg);
-      if (msg.includes('บ่อยเกินไป')) startCooldown(60);
+
     } finally {
       setIsEnhancing(false);
     }
@@ -232,6 +234,7 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
         body: JSON.stringify({ title, content, type: activeTab }),
       });
       const data = await res.json();
+      if (res.status === 429 && typeof data.retryAfter === 'number') startCooldown(data.retryAfter);
       if (!res.ok) throw new Error(data.error || 'AI error');
       // กรอง tags ที่มีอยู่แล้วออก
       const newTags = (data.tags || []).filter((t: string) => !tags.includes(t));
@@ -239,7 +242,7 @@ export default function PostModal({ isOpen, onClose, onSuccess, editMode = false
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'AI ไม่สามารถแนะนำแท็กได้';
       setAiError(msg);
-      if (msg.includes('บ่อยเกินไป')) startCooldown(60);
+
     } finally {
       setIsSuggestingTags(false);
     }

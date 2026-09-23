@@ -8,7 +8,7 @@ import { verifyOtp, sendOtp } from '@/lib/actions/auth';
 function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const email = searchParams.get('email') || 'user@gmail.com';
+  const email = searchParams.get('email') || '';
   const flow = searchParams.get('flow'); // 'reset' = forgot-password flow
 
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
@@ -70,7 +70,7 @@ function VerifyEmailContent() {
     setIsLoading(true);
 
     try {
-      const result = await verifyOtp(email, code);
+      const result = await verifyOtp(email, code, flow === 'reset' ? 'reset' : 'register');
 
       if (!result.success) {
         setError(result.error || 'รหัส OTP ไม่ถูกต้อง');
@@ -94,7 +94,7 @@ function VerifyEmailContent() {
     setCountdown(59);
     setError('');
     const purpose = flow === 'reset' ? 'reset' : 'register';
-    await sendOtp(email, purpose);
+    try { const result = await sendOtp(email, purpose); if (!result.success) setError(result.error || 'ส่งรหัสไม่สำเร็จ'); } catch { setError('ส่งรหัสไม่สำเร็จ กรุณาลองใหม่'); }
   };
 
   const formatTime = (seconds: number) => {

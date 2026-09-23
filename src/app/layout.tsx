@@ -45,7 +45,7 @@ export default async function RootLayout({
         select: { theme: true, codeTheme: true },
       });
       if (prefs) {
-        userTheme = prefs.theme || 'light';
+        userTheme = ['light','dark','system'].includes(prefs.theme) ? prefs.theme : 'light';
         userCodeTheme = prefs.codeTheme || 'VS Code Dark Modern';
       }
     } catch {

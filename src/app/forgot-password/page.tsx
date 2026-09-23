@@ -21,7 +21,8 @@ export default function ForgotPasswordPage() {
 
     setIsLoading(true);
     try {
-      await forgotPassword(email);
+      const result = await forgotPassword(email);
+      if (!result.success) { setError(result.error || 'ไม่สามารถส่งรหัสได้'); return; }
       // ไปหน้า OTP เสมอ (ไม่บอกว่าอีเมลมีหรือเปล่าเพื่อความปลอดภัย)
       router.push(`/verify-email?email=${encodeURIComponent(email)}&flow=reset`);
     } catch {

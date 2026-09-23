@@ -1,10 +1,14 @@
 'use server';
 
+import { requireSession } from '@/lib/session';
+import { rateLimit } from '@/lib/rate-limit';
 import { prisma } from '../prisma';
-import { createNotification } from './notification';
+import { createNotification } from '@/lib/notifications';
 
 export async function trackCopy(postId: string) {
   try {
+    const session = await requireSession();
+    await rateLimit('copy', session.user.id, 60, 60);
     const post = await prisma.post.update({
       where: { id: postId },
       data: { copyCount: { increment: 1 } },

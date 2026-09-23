@@ -3,6 +3,9 @@ import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
+import { randomUUID } from 'node:crypto';
+import { credentialVersion, mfaGrant, emailAddress } from '@/lib/security-tokens';
+import { rateLimit } from '@/lib/rate-limit';
 
 class CustomAuthError extends CredentialsSignin {
   constructor(msg: string) {
@@ -23,16 +26,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
-        // ช่อง mfaVerified พิเศษสำหรับ step 2 (ไม่แสดงใน UI ปกติ)
-        mfaVerified: { label: 'MFA Verified', type: 'text' },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        if (typeof credentials?.email !== 'string' || typeof credentials?.password !== 'string' || Buffer.byteLength(credentials.password, 'utf8') > 72) {
           throw new CustomAuthError('กรุณากรอกอีเมลและรหัสผ่าน');
         }
 
+        const email = emailAddress(credentials.email);
+        try { await rateLimit('login', email, 10, 900); } catch { throw new CustomAuthError('ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอแล้วลองใหม่'); }
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
           select: {
             id: true, name: true, email: true, image: true, role: true,
             status: true, emailVerified: true, passwordHash: true, mfaEnabled: true,
@@ -66,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: user.name,
           email: user.email,
           image: user.image,
-          role: user.role,
+          credentialVersion: credentialVersion(user.passwordHash),
           requiresMfa: user.mfaEnabled,
           mfaVerified: user.mfaEnabled ? false : true, // ถ้าไม่เปิด MFA ถือว่า verified แล้ว
         };
@@ -77,40 +80,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as any).role || 'USER';
-        token.requiresMfa = (user as any).requiresMfa ?? false;
-        token.mfaVerified = (user as any).mfaVerified ?? true;
+        token.sessionId = randomUUID();
+        token.credentialVersion = user.credentialVersion;
       }
       return token;
     },
     async session({ session, token }) {
-      if (token?.id) {
-        session.user.id = token.id as string;
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.id as string },
-            select: { role: true, status: true, mfaEnabled: true, mfaVerifiedAt: true },
-          });
-          (session.user as any).role = dbUser?.role || (token.role as string) || 'USER';
-          (session.user as any).status = dbUser?.status || 'ACTIVE';
-
-          // ── MFA verification check (DB-backed, per-session) ──
-          const requiresMfa = dbUser?.mfaEnabled ?? false;
-          // เปรียบเทียบกับเวลาที่ JWT นี้ถูกออก (iat) เพื่อให้ verify ทุก login ใหม่
-          const sessionIssuedAt = new Date((token.iat as number) * 1000);
-          const mfaVerified = !requiresMfa ||
-            (dbUser?.mfaVerifiedAt != null && dbUser.mfaVerifiedAt > sessionIssuedAt);
-          (session.user as any).requiresMfa = requiresMfa;
-          (session.user as any).mfaVerified = mfaVerified;
-        } catch {
-          (session.user as any).role = (token.role as string) || 'USER';
-          (session.user as any).status = 'ACTIVE';
-          (session.user as any).requiresMfa = false;
-          (session.user as any).mfaVerified = true;
+      // Old, deleted, revoked and unverifiable sessions fail closed.
+      Object.assign(session.user, {id: '', role: 'USER', status: 'INVALID', requiresMfa: true, mfaVerified: false, sessionId: ''});
+      if (typeof token.id !== 'string' || typeof token.sessionId !== 'string') return session;
+      try {
+        const user = await prisma.user.findUnique({where: {id: token.id}, select: {
+          role: true, status: true, emailVerified: true, passwordHash: true, mfaEnabled: true, mfaSecret: true,
+        }});
+        if (!user?.passwordHash || !user.emailVerified || token.credentialVersion !== credentialVersion(user.passwordHash)) return session;
+        let verified = !user.mfaEnabled;
+        if (user.mfaEnabled && user.mfaSecret) {
+          const grant = mfaGrant(token.id, token.sessionId, user.mfaSecret);
+          const stored = await prisma.verificationToken.findUnique({where: {token: grant.token}});
+          verified = !!stored && stored.identifier === grant.identifier && stored.expires > new Date();
         }
+        Object.assign(session.user, {id: token.id, role: user.role, status: user.status,
+          requiresMfa: user.mfaEnabled, mfaVerified: verified, sessionId: token.sessionId});
+      } catch {
+        // Do not grant access when the database or verification service fails.
       }
       return session;
     },
   },
 });
-

@@ -42,6 +42,7 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
   const [codeTheme, setCodeTheme] = useState(settings.codeTheme || 'VS Code Dark Modern');
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const handleSelectTheme = (newTheme: string) => {
     setTheme(newTheme);
@@ -56,12 +57,15 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
   const handleSave = async () => {
     setSaving(true);
     setSuccess('');
+    setError('');
+    try {
     await updatePreferences({ theme, codeTheme });
     applyTheme(theme as 'light' | 'dark' | 'system');
     applyCodeTheme(codeTheme);
     setSuccess('บันทึกการตั้งค่าสำเร็จ!');
     setTimeout(() => setSuccess(''), 3000);
-    setSaving(false);
+    } catch { setError('บันทึกไม่สำเร็จ กรุณาลองใหม่หรือเข้าสู่ระบบอีกครั้ง'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -126,6 +130,7 @@ export default function AppearanceSettings({ settings }: { settings: SettingsDat
         </pre>
       </div>
 
+      {error && <div className="settings-error" role="alert">{error}</div>}
       {success && <div className="settings-success" style={{ marginTop: '16px' }}>{success}</div>}
 
       <div className="settings-actions" style={{ justifyContent: 'flex-end' }}>

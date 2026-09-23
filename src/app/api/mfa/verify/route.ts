@@ -1,43 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { verifyMfaLogin } from '@/lib/actions/mfa';
-import { prisma } from '@/lib/prisma';
+import { requireSession, AccessError } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth();
-
-    // ต้องมี session (login แล้ว)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อน' }, { status: 401 });
-    }
-
+    const origin = request.headers.get('origin');
+    if (origin && origin !== request.nextUrl.origin) return NextResponse.json({error: 'คำขอไม่ถูกต้อง'}, {status: 403});
+    await requireSession(true);
     const body = await request.json();
-    const { token: otpToken } = body;
-
-    if (!otpToken) {
-      return NextResponse.json({ error: 'กรุณากรอกรหัส OTP' }, { status: 400 });
-    }
-
-    // ตรวจสอบ OTP หรือ Backup Code
-    const result = await verifyMfaLogin(session.user.id, otpToken);
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
-    }
-
-    // ✅ บันทึกเวลา verify ลง DB — session callback จะอ่านค่านี้แทนการ re-encode JWT
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: { mfaVerifiedAt: new Date() },
-    });
-
-    return NextResponse.json({
-      success: true,
-      usedBackupCode: result.usedBackupCode,
-    });
-  } catch (e) {
-    console.error('MFA verify API error:', e);
-    return NextResponse.json({ error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }, { status: 500 });
+    if (typeof body?.token !== 'string') return NextResponse.json({error: 'กรุณากรอกรหัส OTP'}, {status: 400});
+    const result = await verifyMfaLogin(body.token);
+    return NextResponse.json(result, {status: result.success ? 200 : result.retryAfter ? 429 : 400, headers: !result.success && result.retryAfter ? {'Retry-After': String(result.retryAfter)} : undefined});
+  } catch (error) {
+    return NextResponse.json({error: error instanceof AccessError ? error.message : 'ไม่สามารถยืนยันได้ กรุณาลองใหม่'}, {status: error instanceof AccessError ? error.status : 400});
   }
 }

@@ -1,176 +1,103 @@
 'use server';
 
-import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { requireSession } from '@/lib/session';
+import { rateLimit, RateLimitError } from '@/lib/rate-limit';
+import { digest, mfaGrant } from '@/lib/security-tokens';
 import bcrypt from 'bcryptjs';
-import {
-  generateMfaSetupData,
-  verifyTotpToken,
-  generateBackupCodes,
-  hashBackupCodes,
-  encryptSecret,
-  decryptSecret,
-  verifyBackupCode,
-} from '@/lib/mfa';
+import { generateMfaSetupData, verifyTotpToken, generateBackupCodes, hashBackupCodes, encryptSecret, decryptSecret, verifyBackupCode } from '@/lib/mfa';
 
-// ── Helper: ดึง session ปัจจุบัน ──
-async function requireUser() {
-  const session = await auth();
-  if (!session?.user?.id) throw new Error('Unauthorized');
-  return session.user.id;
+function errorResult(error: unknown) { return {success: false as const, error: error instanceof RateLimitError ? error.message : 'ไม่สามารถยืนยันได้ กรุณาตรวจสอบรหัสแล้วลองใหม่', retryAfter: error instanceof RateLimitError ? error.retryAfter : undefined}; }
+
+export async function getMfaStatus() {
+  const session = await requireSession();
+  const user = await prisma.user.findUnique({where: {id: session.user.id}, select: {mfaEnabled: true, mfaBackupCodes: true}});
+  return {enabled: user?.mfaEnabled ?? false, hasBackupCodes: !!user?.mfaBackupCodes.length};
 }
 
-// ─────────────────────────────────────────────
-// 1. ดึงสถานะ MFA ของผู้ใช้ปัจจุบัน
-// ─────────────────────────────────────────────
-export async function getMfaStatus(): Promise<{ enabled: boolean; hasBackupCodes: boolean }> {
-  const userId = await requireUser();
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { mfaEnabled: true, mfaBackupCodes: true },
-  });
-  return {
-    enabled: user?.mfaEnabled ?? false,
-    hasBackupCodes: (user?.mfaBackupCodes?.length ?? 0) > 0,
-  };
-}
-
-// ─────────────────────────────────────────────
-// 2. เริ่มต้นการตั้งค่า MFA — คืน QR Code + Secret
-// ─────────────────────────────────────────────
-export async function initMfaSetup(): Promise<{
-  success: boolean;
-  qrCodeUrl?: string;
-  secret?: string;
-  error?: string;
-}> {
+export async function initMfaSetup() {
   try {
-    const userId = await requireUser();
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true, mfaEnabled: true },
+    const session = await requireSession();
+    await rateLimit('mfa-setup', session.user.id, 5, 900);
+    const user = await prisma.user.findUnique({where: {id: session.user.id}});
+    if (!user?.email || user.mfaEnabled) return {success: false as const, error: 'ไม่สามารถเริ่มตั้งค่า 2FA ได้'};
+    const {secret, qrCodeUrl} = await generateMfaSetupData(user.email);
+    const identifier = 'mfa-setup:' + user.id + ':' + session.user.sessionId;
+    await prisma.$transaction(async tx => {
+      await tx.verificationToken.deleteMany({where: {identifier}});
+      await tx.verificationToken.create({data: {identifier, token: encryptSecret(secret), expires: new Date(Date.now() + 600000)}});
     });
-    if (!user?.email) return { success: false, error: 'ไม่พบข้อมูลผู้ใช้' };
-    if (user.mfaEnabled) return { success: false, error: 'เปิดใช้ 2FA อยู่แล้ว' };
-
-    const { secret, qrCodeUrl } = await generateMfaSetupData(user.email);
-    return { success: true, qrCodeUrl, secret };
-  } catch (e) {
-    console.error('initMfaSetup error:', e);
-    return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-  }
+    return {success: true as const, secret, qrCodeUrl};
+  } catch (error) { return errorResult(error); }
 }
 
-// ─────────────────────────────────────────────
-// 3. ยืนยันการเปิด MFA ด้วย OTP
-// ─────────────────────────────────────────────
-export async function confirmEnableMfa(
-  tempSecret: string,
-  token: string
-): Promise<{ success: boolean; backupCodes?: string[]; error?: string }> {
+export async function confirmEnableMfa(tempSecret: string, token: string) {
   try {
-    const userId = await requireUser();
-
-    // ตรวจสอบ OTP ด้วย temp secret (plain text ที่ client ส่งมา)
-    const valid = verifyTotpToken(tempSecret, token);
-    if (!valid) return { success: false, error: 'รหัส OTP ไม่ถูกต้อง กรุณาลองใหม่' };
-
-    // สร้าง backup codes
-    const plainBackupCodes = generateBackupCodes();
-    const hashedCodes = await hashBackupCodes(plainBackupCodes);
-
-    // บันทึกลง DB
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        mfaEnabled: true,
-        mfaSecret: encryptSecret(tempSecret),
-        mfaBackupCodes: hashedCodes,
-        mfaVerifiedAt: new Date(), // ถือว่า verify แล้ว ณ ตอนที่ setup เสร็จ
-      },
+    const session = await requireSession();
+    await rateLimit('mfa-check', session.user.id, 10, 900);
+    if (typeof tempSecret !== 'string' || tempSecret.length > 128 || typeof token !== 'string' || !/^\d{6}$/.test(token)) return errorResult(null);
+    const backupCodes = generateBackupCodes();
+    const hashes = await hashBackupCodes(backupCodes);
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE`;
+      const user = await tx.user.findUnique({where: {id: session.user.id}});
+      if (!user || user.mfaEnabled || user.status !== 'ACTIVE') throw new Error('Invalid setup');
+      const identifier = 'mfa-setup:' + user.id + ':' + session.user.sessionId;
+      const pending = await tx.verificationToken.findFirst({where: {identifier, expires: {gt: new Date()}}});
+      if (!pending || decryptSecret(pending.token) !== tempSecret || !verifyTotpToken(tempSecret, token)) throw new Error('Invalid setup token');
+      const encrypted = encryptSecret(tempSecret);
+      await tx.user.update({where: {id: user.id}, data: {mfaEnabled: true, mfaSecret: encrypted, mfaBackupCodes: hashes, mfaVerifiedAt: null}});
+      await tx.verificationToken.deleteMany({where: {identifier}});
+      const grant = mfaGrant(user.id, session.user.sessionId, encrypted);
+      await tx.verificationToken.create({data: {...grant, expires: new Date(Date.now() + 30 * 86400000)}});
     });
-
-    return { success: true, backupCodes: plainBackupCodes };
-  } catch (e) {
-    console.error('confirmEnableMfa error:', e);
-    return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-  }
+    return {success: true as const, backupCodes};
+  } catch (error) { return errorResult(error); }
 }
 
-// ─────────────────────────────────────────────
-// 4. ปิด MFA (ต้องยืนยัน password + OTP)
-// ─────────────────────────────────────────────
-export async function disableMfa(
-  password: string,
-  token: string
-): Promise<{ success: boolean; error?: string }> {
+export async function disableMfa(password: string, token: string) {
   try {
-    const userId = await requireUser();
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { passwordHash: true, mfaSecret: true, mfaEnabled: true },
-    });
-
-    if (!user?.mfaEnabled) return { success: false, error: 'ยังไม่ได้เปิดใช้ 2FA' };
-    if (!user.passwordHash) return { success: false, error: 'ไม่สามารถยืนยันรหัสผ่านได้' };
-
-    const passwordOk = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordOk) return { success: false, error: 'รหัสผ่านไม่ถูกต้อง' };
-
-    const secret = decryptSecret(user.mfaSecret!);
-    const totpOk = verifyTotpToken(secret, token);
-    if (!totpOk) return { success: false, error: 'รหัส OTP ไม่ถูกต้อง' };
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [], mfaVerifiedAt: null },
-    });
-
-    return { success: true };
-  } catch (e) {
-    console.error('disableMfa error:', e);
-    return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-  }
+    const session = await requireSession();
+    await rateLimit('mfa-check', session.user.id, 10, 900);
+    if (typeof password !== 'string' || Buffer.byteLength(password, 'utf8') > 72 || typeof token !== 'string' || !/^\d{6}$/.test(token)) return errorResult(null);
+    await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE`;
+      const user = await tx.user.findUnique({where: {id: session.user.id}});
+      if (!user?.mfaEnabled || !user.mfaSecret || !user.passwordHash || !await bcrypt.compare(password, user.passwordHash) || !verifyTotpToken(decryptSecret(user.mfaSecret), token)) throw new Error('Invalid credentials');
+      await tx.user.update({where: {id: user.id}, data: {mfaEnabled: false, mfaSecret: null, mfaBackupCodes: [], mfaVerifiedAt: null}});
+      await tx.verificationToken.deleteMany({where: {identifier: {startsWith: 'mfa:' + user.id + ':'}}});
+    }, {timeout: 15000});
+    return {success: true as const};
+  } catch (error) { return errorResult(error); }
 }
 
-// ─────────────────────────────────────────────
-// 5. ตรวจสอบ MFA ระหว่าง Login Flow (จาก /verify-mfa)
-// ─────────────────────────────────────────────
-export async function verifyMfaLogin(
-  userId: string,
-  token: string
-): Promise<{ success: boolean; usedBackupCode?: boolean; error?: string }> {
+// Direct Server Action calls receive the same authorization and limits as the API route.
+export async function verifyMfaLogin(token: string) {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { mfaSecret: true, mfaBackupCodes: true, mfaEnabled: true },
-    });
-
-    if (!user?.mfaEnabled || !user.mfaSecret) {
-      return { success: false, error: 'ยังไม่ได้เปิดใช้ 2FA' };
-    }
-
-    // ลอง TOTP ก่อน
-    const secret = decryptSecret(user.mfaSecret);
-    const totpOk = verifyTotpToken(secret, token);
-    if (totpOk) return { success: true };
-
-    // ลอง Backup Code
-    const backupIdx = await verifyBackupCode(token, user.mfaBackupCodes);
-    if (backupIdx >= 0) {
-      // ตัด backup code ที่ใช้แล้วออก
-      const remaining = [...user.mfaBackupCodes];
-      remaining.splice(backupIdx, 1);
-      await prisma.user.update({
-        where: { id: userId },
-        data: { mfaBackupCodes: remaining },
-      });
-      return { success: true, usedBackupCode: true };
-    }
-
-    return { success: false, error: 'รหัส OTP หรือ Backup Code ไม่ถูกต้อง' };
-  } catch (e) {
-    console.error('verifyMfaLogin error:', e);
-    return { success: false, error: 'เกิดข้อผิดพลาด กรุณาลองใหม่' };
-  }
+    const session = await requireSession(true);
+    await rateLimit('mfa-check', session.user.id, 10, 900);
+    if (typeof token !== 'string' || !/^(\d{6}|[a-fA-F0-9]{8})$/.test(token)) return errorResult(null);
+    const usedBackupCode = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${session.user.id} FOR UPDATE`;
+      const user = await tx.user.findUnique({where: {id: session.user.id}});
+      if (!user?.mfaEnabled || !user.mfaSecret || user.status !== 'ACTIVE') throw new Error('Invalid user');
+      let backup = false;
+      if (verifyTotpToken(decryptSecret(user.mfaSecret), token)) {
+        // Prevent a valid TOTP being replayed into a second login within its time window.
+        const replayToken = digest('mfa-replay:' + user.id + ':' + user.mfaSecret + ':' + token);
+        await tx.verificationToken.deleteMany({where: {token: replayToken, expires: {lte: new Date()}}});
+        await tx.verificationToken.create({data: {identifier: 'mfa-replay:' + user.id, token: replayToken, expires: new Date(Date.now() + 90000)}});
+      } else {
+        const index = await verifyBackupCode(token, user.mfaBackupCodes);
+        if (index < 0) throw new Error('Invalid code');
+        const remaining = user.mfaBackupCodes.filter((_, i) => i !== index);
+        await tx.user.update({where: {id: user.id}, data: {mfaBackupCodes: remaining}});
+        backup = true;
+      }
+      const grant = mfaGrant(user.id, session.user.sessionId, user.mfaSecret);
+      await tx.verificationToken.upsert({where: {token: grant.token}, create: {...grant, expires: new Date(Date.now() + 30 * 86400000)}, update: {expires: new Date(Date.now() + 30 * 86400000)}});
+      return backup;
+    }, {timeout: 15000});
+    return {success: true as const, usedBackupCode};
+  } catch (error) { return errorResult(error); }
 }

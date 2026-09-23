@@ -32,16 +32,19 @@ export default function AccountSettings({ settings }: { settings: SettingsData }
     }
 
     setSaving(true);
+    try {
     const result = await changePassword(oldPassword, newPassword);
     if (result.success) {
-      setSuccess('เปลี่ยนรหัสผ่านสำเร็จ!');
+      setSuccess('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่');
+      await signOut({ callbackUrl: '/login' });
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } else {
       setError(result.error || 'เกิดข้อผิดพลาด');
     }
-    setSaving(false);
+    } catch { setError('เปลี่ยนรหัสผ่านไม่สำเร็จ กรุณารอแล้วลองใหม่'); }
+    finally { setSaving(false); }
   };
 
   const handleDeleteAccount = async () => {

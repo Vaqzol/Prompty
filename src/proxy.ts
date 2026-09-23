@@ -21,7 +21,7 @@ const publicPaths = [
 
 async function isMaintenanceModeActive(): Promise<boolean> {
   try {
-    const setting = await (prisma as any).systemSetting.findUnique({
+    const setting = await prisma.systemSetting.findUnique({
       where: { key: 'maintenance_mode' },
     });
     return setting?.value === 'true';
@@ -32,8 +32,9 @@ async function isMaintenanceModeActive(): Promise<boolean> {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const session = await auth();
-  const user = session?.user as any;
+  const candidate = await auth();
+  const session = candidate?.user?.id ? candidate : null;
+  const user = session?.user;
   const userRole = user?.role;
   const userStatus = user?.status;
 
@@ -47,14 +48,13 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── 0b. MFA Verification Check ──
-  const requiresMfa = (user as any)?.requiresMfa;
-  const mfaVerified = (user as any)?.mfaVerified;
+  const requiresMfa = user?.requiresMfa;
+  const mfaVerified = user?.mfaVerified;
   if (session && requiresMfa && !mfaVerified) {
     if (
       pathname !== '/verify-mfa' &&
       !pathname.startsWith('/api/auth') &&
-      !pathname.startsWith('/api/mfa') && // ← อนุญาตให้เรียก MFA API ได้ขณะรอ verify
-      !pathname.startsWith('/api/ai') // ← AI API ใช้ได้ทั้งก่อนและหลัง MFA
+      pathname !== '/api/mfa/verify'
     ) {
       return NextResponse.redirect(new URL('/verify-mfa', request.url));
     }
@@ -100,7 +100,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // ── 3. Public Routes ──
-  if (publicPaths.some((path) => pathname.startsWith(path))) {
+  if (publicPaths.some((path) => pathname === path || pathname.startsWith(path + '/'))) {
     // If already logged in (active) and visiting login/register -> redirect to appropriate home
     if (session && userStatus !== 'BANNED' && (pathname === '/login' || pathname === '/register')) {
       if (userRole === 'ADMIN') {
@@ -120,5 +120,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/upload).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png|api/).*)'],
 };

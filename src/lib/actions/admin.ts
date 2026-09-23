@@ -1,8 +1,11 @@
 'use server';
 
-import { auth } from '@/auth';
+import { requireSession as auth } from '@/lib/session';
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { validPassword } from '@/lib/security-tokens';
+import { rateLimit } from '@/lib/rate-limit';
 import { revalidatePath } from 'next/cache';
 
 // ── Helper: ตรวจสอบว่าเป็น Admin ──
@@ -26,8 +29,10 @@ export async function requireAdmin() {
 
 // ── 1. Admin Login Verification ──
 export async function adminAuthenticate(data: { email: string; password: string }) {
+  if (typeof data.email !== 'string' || typeof data.password !== 'string' || Buffer.byteLength(data.password, 'utf8') > 72) return {error: 'ข้อมูลเข้าสู่ระบบไม่ถูกต้อง'};
+  try { await rateLimit('admin-login', data.email.trim().toLowerCase(), 10, 900); } catch { return {error: 'ลองเข้าสู่ระบบบ่อยเกินไป กรุณารอแล้วลองใหม่'}; }
   const user = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email: data.email.trim().toLowerCase() },
   });
 
   if (!user || !user.passwordHash) {
@@ -270,7 +275,7 @@ export async function getAdminPosts(options?: {
   const perPage = options?.perPage || 10;
   const skip = (page - 1) * perPage;
 
-  const where: any = {};
+  const where: Prisma.PostWhereInput = {};
 
   if (options?.type) {
     where.type = options.type;
@@ -391,7 +396,7 @@ export async function getAdminReports(options?: {
 
   const statusFilter = options?.status || 'PENDING';
 
-  const where: any = {
+  const where: Prisma.ReportWhereInput = {
     status: statusFilter,
   };
 
@@ -676,7 +681,7 @@ export async function getAdminTags(options?: {
   });
 
   // 2. Query Tags จาก DB ตามตัวกรอง
-  const where: any = {};
+  const where: Prisma.TagWhereInput = {};
   if (statusFilter !== 'ALL') {
     where.status = statusFilter;
   }
@@ -761,7 +766,7 @@ export async function updateAdminTag(
 ) {
   await requireAdmin();
 
-  const updateData: any = {};
+  const updateData: Prisma.TagUpdateInput = {};
   if (data.name) {
     const cleanName = data.name.trim().replace(/^#/, '');
     if (!cleanName) {
@@ -861,7 +866,7 @@ export async function getAdminUsers(options?: {
   const perPage = options?.perPage || 10;
   const skip = (page - 1) * perPage;
 
-  const where: any = {};
+  const where: Prisma.UserWhereInput = {};
 
   if (options?.roleFilter && options.roleFilter !== 'ALL') {
     where.role = options.roleFilter;
@@ -947,7 +952,7 @@ export async function updateUserRoleAndStatus(
   });
 
   revalidatePath('/admin/users');
-  return { success: true, user: updated };
+  return { success: true, user: { id: updated.id, role: updated.role, status: updated.status } };
 }
 
 // ─────────────────────────────────────────────
@@ -967,8 +972,8 @@ export async function createAdminUser(data: {
     return { success: false, error: 'กรุณากรอกข้อมูลให้ครบทุกช่อง' };
   }
 
-  if (data.password.length < 6) {
-    return { success: false, error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
+  if (!validPassword(data.password)) {
+    return { success: false, error: 'รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร และไม่เกิน 72 ไบต์' };
   }
 
   const existing = await prisma.user.findUnique({
@@ -1010,7 +1015,7 @@ export async function createAdminUser(data: {
   });
 
   revalidatePath('/admin/users');
-  return { success: true, user: newAdmin };
+  return { success: true, user: { id: newAdmin.id, name: newAdmin.name, email: newAdmin.email, role: newAdmin.role } };
 }
 
 // ─────────────────────────────────────────────
@@ -1116,7 +1121,7 @@ export async function updateAdminPassword(data: {
     return { success: false, error: 'รหัสผ่านใหม่และยืนยันรหัสผ่านไม่ตรงกัน' };
   }
 
-  if (data.newPassword.length < 6) {
+  if (!validPassword(data.newPassword)) {
     return { success: false, error: 'รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร' };
   }
 
@@ -1185,8 +1190,8 @@ export async function getSystemSettings() {
   await requireAdmin();
 
   try {
-    const settings = await (prisma as any).systemSetting.findMany();
-    const map = new Map(settings.map((s: any) => [s.key, s.value]));
+    const settings = await prisma.systemSetting.findMany({ where: { NOT: { key: { startsWith: '__rate:' } } } });
+    const map = new Map(settings.map((s) => [s.key, s.value]));
 
     return {
       maintenanceMode: map.get('maintenance_mode') === 'true',
@@ -1205,10 +1210,11 @@ export async function getSystemSettings() {
 // 26. Settings: อัปเดตการตั้งค่าระบบ
 // ─────────────────────────────────────────────
 export async function updateSystemSetting(key: string, value: boolean) {
+  if (typeof key !== 'string' || key.startsWith('__') || typeof value !== 'boolean') throw new Error('Invalid setting');
   await requireAdmin();
 
   try {
-    await (prisma as any).systemSetting.upsert({
+    await prisma.systemSetting.upsert({
       where: { key },
       update: { value: String(value) },
       create: { key, value: String(value) },

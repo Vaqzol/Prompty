@@ -33,10 +33,13 @@ export default function NotificationSettings({ settings }: { settings: SettingsD
   const [notifySecurity] = useState(settings.notifySecurity);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState('');
+  const [error, setError] = useState('');
 
   const handleSave = async () => {
     setSaving(true);
     setSuccess('');
+    setError('');
+    try {
     await updatePreferences({
       notifyComments,
       notifyVotes,
@@ -45,7 +48,8 @@ export default function NotificationSettings({ settings }: { settings: SettingsD
     });
     setSuccess('บันทึกการตั้งค่าสำเร็จ!');
     setTimeout(() => setSuccess(''), 3000);
-    setSaving(false);
+    } catch { setError('บันทึกไม่สำเร็จ กรุณาลองใหม่หรือเข้าสู่ระบบอีกครั้ง'); }
+    finally { setSaving(false); }
   };
 
   return (
@@ -103,6 +107,7 @@ export default function NotificationSettings({ settings }: { settings: SettingsD
         </div>
       </div>
 
+      {error && <div className="settings-error" role="alert">{error}</div>}
       {success && <div className="settings-success" style={{ marginTop: '16px' }}>{success}</div>}
 
       <div className="settings-actions" style={{ justifyContent: 'flex-end' }}>

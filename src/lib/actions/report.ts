@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/auth';
+import { verifiedSession as auth } from '@/lib/session';
 import { prisma } from '../prisma';
 
 export async function createReport(postId: string, reason: string) {

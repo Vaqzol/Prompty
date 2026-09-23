@@ -1,20 +1,14 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/auth';
+import { requireSession } from '@/lib/session';
 import { revalidatePath } from 'next/cache';
-import { createNotification } from './notification';
+import { createNotification } from '@/lib/notifications';
 
 // ─────────────────────────────────────────────
 // Helper: ดึง session ปัจจุบัน
 // ─────────────────────────────────────────────
-async function getSession() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error('กรุณาเข้าสู่ระบบก่อน');
-  }
-  return session as typeof session & { user: { id: string } };
-}
+const getSession = requireSession;
 
 // ─────────────────────────────────────────────
 // 1. สร้างโพสต์
