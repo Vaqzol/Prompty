@@ -44,6 +44,7 @@ export async function createPost(data: {
   });
 
   revalidatePath('/');
+  revalidatePath('/categories', 'layout');
   revalidatePath('/trending');
   revalidatePath('/tags');
   return { success: true, postId: post.id };
@@ -168,6 +169,7 @@ export async function updatePost(
   });
 
   revalidatePath('/');
+  revalidatePath('/categories', 'layout');
   revalidatePath(`/post/${postId}`);
   return { success: true };
 }
@@ -187,6 +189,7 @@ export async function deletePost(postId: string) {
   await prisma.post.delete({ where: { id: postId } });
 
   revalidatePath('/');
+  revalidatePath('/categories', 'layout');
   revalidatePath('/profile');
   return { success: true };
 }
@@ -235,6 +238,7 @@ export async function toggleVote(postId: string, type: 'UP' | 'DOWN') {
   }
 
   revalidatePath('/');
+  revalidatePath('/categories', 'layout');
   revalidatePath(`/post/${postId}`);
   return { success: true };
 }

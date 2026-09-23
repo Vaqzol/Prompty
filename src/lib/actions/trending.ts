@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { CATEGORIES } from '@/lib/constants/categories';
+import { CATEGORIES, getPostCategorySlugs } from '@/lib/constants/categories';
 import { unstable_cache } from 'next/cache';
 
 // Helper to filter date by period
@@ -352,31 +352,18 @@ export async function getPostsByTag(
 // ─────────────────────────────────────────────
 // 5. All Categories
 // ─────────────────────────────────────────────
-// ── Cached: อัปเดตทุก 1 ชั่วโมง ──
-export const getAllCategories = unstable_cache(
-  async () => {
-  const posts = await prisma.post.findMany({
-    select: { tags: true },
-  });
-
-  return CATEGORIES.map((cat) => {
-    const catTagsLower = cat.tags.map((t) => t.toLowerCase());
-    const count = posts.filter((p) =>
-      p.tags.some((t) => catTagsLower.includes(t.toLowerCase()))
-    ).length;
-
-    return {
-      slug: cat.slug,
-      name: cat.name,
-      icon: cat.icon,
-      description: cat.description,
-      postCount: count,
-    };
-  });
-  },
-  ['all-categories'],
-  { revalidate: 3600 } // 1 ชั่วโมง
-);
+// Read current totals so creates, edits and deletions are reflected immediately.
+export async function getAllCategories() {
+  const posts = await prisma.post.findMany({ select: { tags: true, language: true, aiModel: true } });
+  const counts = new Map<string, number>();
+  for (const post of posts) {
+    for (const slug of getPostCategorySlugs(post)) counts.set(slug, (counts.get(slug) || 0) + 1);
+  }
+  return CATEGORIES.map(category => ({
+    slug: category.slug, name: category.name, icon: category.icon, description: category.description,
+    postCount: counts.get(category.slug) || 0,
+  }));
+}
 
 // ─────────────────────────────────────────────
 // 6. Posts by Category
@@ -389,7 +376,6 @@ export async function getCategoryPosts(
   if (!category) return null;
 
   const dateFrom = getDateFromPeriod(period);
-  const catTagsLower = category.tags.map((t) => t.toLowerCase());
 
   const allPosts = await prisma.post.findMany({
     where: dateFrom ? { createdAt: { gte: dateFrom } } : {},
@@ -417,7 +403,7 @@ export async function getCategoryPosts(
   });
 
   const filtered = allPosts.filter((post) =>
-    post.tags.some((t) => catTagsLower.includes(t.toLowerCase()))
+    getPostCategorySlugs(post).includes(slug)
   );
 
   const formatted = filtered.map((post) => {

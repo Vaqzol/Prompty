@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { changePassword, deleteAccount } from '@/lib/actions/user';
 import { signOut } from 'next-auth/react';
+import { signOutAfterPasswordChange } from '@/lib/password-change-logout';
 
 interface SettingsData {
   email: string | null;
@@ -36,7 +37,7 @@ export default function AccountSettings({ settings }: { settings: SettingsData }
     const result = await changePassword(oldPassword, newPassword);
     if (result.success) {
       setSuccess('เปลี่ยนรหัสผ่านสำเร็จ กรุณาเข้าสู่ระบบใหม่');
-      await signOut({ callbackUrl: '/login' });
+      await signOutAfterPasswordChange();
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');

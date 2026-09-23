@@ -1,12 +1,15 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, type EnhancedGenerateContentResponse } from '@google/generative-ai';
 
 // ─────────────────────────────────────────────
 // Gemini AI Client
 // ─────────────────────────────────────────────
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// ใช้ gemini-3.6-flash — เร็ว ฟรี เหมาะกับงาน text
-const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-3.6-flash' });
+// Allow deployments to select their available Gemini model.
+const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+const model = genAI.getGenerativeModel({ model: modelName });
+// Gemini 3 supports low thinking; keep other configured model families unchanged.
+const thinkingOptions = modelName.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: 'low' } } : {};
 
 // ─────────────────────────────────────────────
 // 1. AI ปรับปรุง Prompt
@@ -29,14 +32,15 @@ Output ONLY the improved code. No markdown blocks. No explanation.`;
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nOriginal:\n${originalContent}` }] }],
     generationConfig: {
-      maxOutputTokens: type === 'CODE' ? 4096 : 1024, // จำกัดความยาว → เร็วขึ้นมาก
+      ...thinkingOptions,
+      maxOutputTokens: 4096, // Leave room for reasoning as well as the final answer.
       temperature: 0.7,
     },
-  });
+  }, { timeout: 45000 });
 
-  if (result.response.candidates?.[0]?.finishReason === 'MAX_TOKENS') throw new Error('AI_OUTPUT_TRUNCATED');
+  validateResponse(result.response);
   const text = result.response.text()?.trim();
-  if (!text) throw new Error('AI ไม่สามารถสร้างผลลัพธ์ได้');
+  if (!text) throw new Error('AI_EMPTY_OUTPUT');
   return text;
 }
 
@@ -60,12 +64,16 @@ export async function suggestTags(
   const result = await model.generateContent({
     contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nTitle: ${title}\nContent: ${content}` }] }],
     generationConfig: {
-      maxOutputTokens: 100, // tags สั้นมาก ไม่ต้องการ tokens เยอะ
+      ...thinkingOptions,
+      maxOutputTokens: 4096, // 100 tokens can be exhausted before any tags are returned.
+      responseMimeType: 'application/json',
       temperature: 0.3,
     },
-  });
+  }, { timeout: 45000 });
 
+  validateResponse(result.response);
   const text = result.response.text()?.trim() ?? '';
+  if (!text) throw new Error('AI_EMPTY_OUTPUT');
 
   // Parse JSON array from response
   try {
@@ -88,4 +96,10 @@ export async function suggestTags(
   }
 
   return [];
+}
+
+function validateResponse(response: EnhancedGenerateContentResponse) {
+  const reason = response.candidates?.[0]?.finishReason;
+  if (reason === 'MAX_TOKENS') throw new Error('AI_OUTPUT_TRUNCATED');
+  if (response.promptFeedback?.blockReason || (reason && reason !== 'STOP')) throw new Error('AI_BLOCKED_OUTPUT');
 }

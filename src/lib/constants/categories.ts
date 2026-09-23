@@ -49,4 +49,21 @@ export const CATEGORIES: CategoryDef[] = [
     description: 'การออกแบบ UI/UX และเครื่องมือดีไซน์',
     tags: ['Figma', 'Sketch', 'AdobeXD', 'Design', 'UI', 'UX', 'Prototype', 'Wireframe', 'DesignSystem', 'Framer'],
   },
+  {
+    slug: 'other',
+    name: 'อื่น ๆ',
+    icon: 'Terminal',
+    description: 'โพสต์ที่ยังไม่ตรงกับหมวดหมู่อื่น รวมถึงโพสต์ที่ไม่มีแท็ก',
+    tags: [],
+  },
 ];
+
+/** Shared by category totals and detail pages so no post falls through the gaps. */
+export function getPostCategorySlugs(post: { tags: string[]; language?: string | null; aiModel?: string | null }): string[] {
+  const normalize = (value: string) => value.trim().replace(/^#+/, '').toLowerCase();
+  const labels = new Set([...post.tags, post.language || '', post.aiModel || ''].map(normalize).filter(Boolean));
+  const matches = CATEGORIES.filter(category => category.slug !== 'other' &&
+    [category.name, category.slug, ...category.tags].some(tag => labels.has(normalize(tag)))
+  ).map(category => category.slug);
+  return matches.length ? matches : ['other'];
+}

@@ -8,11 +8,11 @@ const ts = require('typescript');
 const bcrypt = require('bcryptjs');
 const root = path.resolve(__dirname, '..');
 const env = {AUTH_SECRET:'test-only-secret-not-used-by-the-app', NODE_ENV:'test'};
-function load(file, mocks = {}) {
+function load(file, mocks = {}, globals = {}) {
   const source = fs.readFileSync(path.join(root,file),'utf8');
   const code = ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
   const exports = {};
-  vm.runInNewContext(code,{exports,Buffer,Date,File,Uint8Array,console,process:{env},require(name) {
+  vm.runInNewContext(code,{...globals,exports,Buffer,Date,File,Uint8Array,console,process:{env},require(name) {
     if (name === 'server-only') return {};
     if (name in mocks) return mocks[name];
     if (name.startsWith('node:') || ['crypto','bcryptjs','otplib/functional','qrcode'].includes(name)) return require(name);
@@ -223,4 +223,48 @@ test('real PostgreSQL rate-limit SQL enforces the cap and resets an expired wind
   await limiter.rateLimit('test','account',5,60);
   assert.equal((await db.query('SELECT count(*) AS n FROM "SystemSetting"')).rows[0].n,1);
  } finally {await db.close();}
+});
+
+test('every post has a category and counts agree with category detail after edits',async()=>{
+ const categories=load('src/lib/constants/categories.ts');
+ const raw=[{tags:[' #React '],language:null},{tags:[],language:'Python'},{tags:['unlisted']},{tags:[],aiModel:'Midjourney'},{tags:['Frontend','React']}];
+ const posts=raw.map((p,i)=>({...p,id:String(i),votes:[],_count:{comments:0}}));
+ const actions=load('src/lib/actions/trending.ts',{'@/lib/prisma':{prisma:{post:{findMany:async()=>posts}}},'@/lib/constants/categories':categories,'next/cache':{unstable_cache:fn=>fn}});
+ for(const post of posts) assert.ok(categories.getPostCategorySlugs(post).length>0);
+ assert.equal(categories.getPostCategorySlugs(posts[2])[0],'other');
+ assert.equal(categories.getPostCategorySlugs(posts[1])[0],'backend');
+ const counts=await actions.getAllCategories();
+ for(const category of counts) assert.equal(category.postCount,(await actions.getCategoryPosts(category.slug,'all')).posts.length);
+ assert.equal(counts.find(c=>c.slug==='frontend').postCount,2);
+ posts[2].tags=['React'];
+ assert.equal((await actions.getAllCategories()).find(c=>c.slug==='frontend').postCount,3);
+ assert.equal((await actions.getAllCategories()).find(c=>c.slug==='other').postCount,0);
+});
+
+test('Gemini reserves enough output, returns valid tags, rejects truncated and blocked responses',async()=>{
+ env.GEMINI_API_KEY='test-key';let reason='STOP',body='["React","Frontend"]',last;
+ const gemini=load('src/lib/gemini.ts',{'@google/generative-ai':{GoogleGenerativeAI:class { getGenerativeModel(){return {generateContent:async(request,options)=>{last={request,options};return {response:{candidates:[{finishReason:reason}],text:()=>body}};}};}}}});
+ assert.equal((await gemini.suggestTags('test','test','CODE')).join(','),'React,Frontend');
+ assert.ok(last.request.generationConfig.maxOutputTokens>=1024);
+ assert.equal(last.request.generationConfig.responseMimeType,'application/json');
+ assert.equal(last.options.timeout,45000);
+ reason='MAX_TOKENS';await assert.rejects(gemini.suggestTags('test','test','CODE'),/AI_OUTPUT_TRUNCATED/);
+ reason='SAFETY';await assert.rejects(gemini.enhancePrompt('test','PROMPT'),/AI_BLOCKED_OUTPUT/);
+ reason='STOP';body='';await assert.rejects(gemini.enhancePrompt('test','PROMPT'),/AI_EMPTY_OUTPUT/);
+ delete env.GEMINI_API_KEY;
+});
+
+test('AI reports provider configuration and quota failures without exposing provider details',async()=>{
+ const f=fixture();let error={status:403};
+ const api=load('src/lib/ai-request.ts',{...f.mocks,'next/server':nextMock,'./gemini':{enhancePrompt:async()=>{throw error;}}});
+ const req={headers:new Headers(),nextUrl:{origin:'http://localhost'},json:async()=>({content:'test',type:'PROMPT'})};
+ for(const status of [400,401,403,404]){error={status,message:'secret-provider-message'};const r=await api.aiRequest(req,'enhance');assert.equal(r.status,503);assert.ok(!JSON.stringify(r).includes('secret-provider-message'));}
+ error={status:429};assert.equal((await api.aiRequest(req,'enhance')).status,429);
+});
+
+test('password change returns to same-origin login even with wrong auth URL or failed logout',async()=>{
+ let target,fail=false;
+ const helper=load('src/lib/password-change-logout.ts',{'next-auth/react':{signOut:async options=>{assert.equal(options.redirect,false);if(fail)throw Error('network');return {url:'http://localhost:3000/login'};}}},{window:{location:{assign:value=>{target=value;}}}});
+ await helper.signOutAfterPasswordChange();assert.equal(target,'/login');
+ fail=true;target=null;await helper.signOutAfterPasswordChange();assert.equal(target,'/login');
 });
