@@ -247,11 +247,70 @@ test('Gemini reserves enough output, returns valid tags, rejects truncated and b
  assert.equal((await gemini.suggestTags('test','test','CODE')).join(','),'React,Frontend');
  assert.ok(last.request.generationConfig.maxOutputTokens>=1024);
  assert.equal(last.request.generationConfig.responseMimeType,'application/json');
- assert.equal(last.options.timeout,45000);
+ assert.ok(last.options.timeout>0 && last.options.timeout<=15000);
  reason='MAX_TOKENS';await assert.rejects(gemini.suggestTags('test','test','CODE'),/AI_OUTPUT_TRUNCATED/);
  reason='SAFETY';await assert.rejects(gemini.enhancePrompt('test','PROMPT'),/AI_BLOCKED_OUTPUT/);
  reason='STOP';body='';await assert.rejects(gemini.enhancePrompt('test','PROMPT'),/AI_EMPTY_OUTPUT/);
  delete env.GEMINI_API_KEY;
+});
+
+test('Gemini recovers from provider outages for both AI features with bounded fallback attempts',async()=>{
+ env.GEMINI_API_KEY='test-key';
+ try {
+  for(const mode of ['tags','enhance']) {
+   const calls=[],waits=[];let failures=1;
+   const gemini=load('src/lib/gemini.ts',{
+    'node:timers/promises':{setTimeout:async ms=>{waits.push(ms);}},
+    '@google/generative-ai':{GoogleGenerativeAI:class {getGenerativeModel({model}){return {generateContent:async(request,options)=>{
+     calls.push({model,request,options});if(failures-->0)throw {status:503};
+     return {response:{candidates:[{finishReason:'STOP'}],text:()=>mode==='tags'?'["React","Frontend"]':'An improved prompt'}};
+    }};}}},
+   });
+   const invoke=()=>mode==='tags'?gemini.suggestTags('React','React code','CODE'):gemini.enhancePrompt('A cat','PROMPT');
+   await invoke();
+   assert.deepEqual(calls.map(c=>c.model),['gemini-3.6-flash','gemini-3.1-flash-lite']);
+   assert.ok(calls.every(c=>c.options.timeout>0 && c.options.timeout<=15000));
+   assert.equal(waits.length,1);assert.ok(waits[0]>=500 && waits[0]<750);
+   failures=10;calls.length=0;waits.length=0;
+   await assert.rejects(invoke(),e=>e.status===503);
+   assert.equal(calls.length,3);assert.equal(waits.length,2);
+   assert.ok(waits[1]>=1000 && waits[1]<1250);
+  }
+ } finally {delete env.GEMINI_API_KEY;}
+});
+
+test('Gemini recovers from SDK timeouts and reports exhausted timeouts safely',async()=>{
+ env.GEMINI_API_KEY='test-key';env.GEMINI_FALLBACK_MODEL='gemini-3.1-flash-lite';
+ class GoogleGenerativeAIAbortError extends Error {}
+ let calls=0,failures=1;
+ try {
+  const gemini=load('src/lib/gemini.ts',{
+   'node:timers/promises':{setTimeout:async()=>{}},
+   '@google/generative-ai':{GoogleGenerativeAI:class {getGenerativeModel(){return {generateContent:async()=>{
+    calls++;if(failures-->0)throw new GoogleGenerativeAIAbortError('private-provider-url');
+    return {response:{candidates:[{finishReason:'STOP'}],text:()=>'Improved prompt'}};
+   }};}}},
+  });
+  assert.equal(await gemini.enhancePrompt('cat','PROMPT'),'Improved prompt');assert.equal(calls,2);
+  failures=10;calls=0;
+  await assert.rejects(gemini.enhancePrompt('cat','PROMPT'),e=>e.name==='TimeoutError' && e.message==='AI_REQUEST_TIMEOUT');
+  assert.equal(calls,3);
+ } finally {delete env.GEMINI_API_KEY;delete env.GEMINI_FALLBACK_MODEL;}
+});
+
+test('Gemini does not retry invalid requests, credentials or quota errors',async()=>{
+ env.GEMINI_API_KEY='test-key';
+ try {
+  for(const status of [400,401,403,404,429]) {
+   let calls=0;
+   const gemini=load('src/lib/gemini.ts',{
+    'node:timers/promises':{setTimeout:async()=>{assert.fail('must not retry');}},
+    '@google/generative-ai':{GoogleGenerativeAI:class {getGenerativeModel(){return {generateContent:async()=>{calls++;throw {status};}};}}},
+   });
+   await assert.rejects(gemini.enhancePrompt('A cat','PROMPT'),e=>e.status===status);
+   assert.equal(calls,1);
+  }
+ } finally {delete env.GEMINI_API_KEY;}
 });
 
 test('AI reports provider configuration and quota failures without exposing provider details',async()=>{

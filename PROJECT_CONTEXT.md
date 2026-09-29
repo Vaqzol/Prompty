@@ -260,7 +260,7 @@ Upload ตรวจ session/origin/rate/size และ magic bytes PNG/JPEG/GIF/
 
 AI ตรวจ type, title ไม่เกิน 200 และ content ไม่เกิน 12,000 ตัวอักษร ใช้ session guard กับ rate limits ร่วมกัน ค่า model fallback ในโค้ดคือ `gemini-3.6-flash` ซึ่งเป็นค่าที่อ่านพบ ไม่ได้ยืนยันว่า provider/account ยังรองรับชื่อนี้จริง
 
-Enhance สำหรับ PROMPT สั่งเป็น prompt ภาษาอังกฤษสำหรับ image generators ไม่เกิน 80 คำ ส่วน CODE สั่งปรับ code/comment โดยรักษาฟังก์ชันเดิม Tags ขอ 3–5 คำเป็น JSON array; ทั้งคู่ตั้ง 4096 output tokens และ timeout 45 วินาที Route maxDuration 60 วินาที และ reject คำตอบว่าง/ถูก block/ถูกตัดด้วย MAX_TOKENS
+Enhance สำหรับ PROMPT สั่งเป็น prompt ภาษาอังกฤษสำหรับ image generators ไม่เกิน 80 คำ ส่วน CODE สั่งปรับ code/comment โดยรักษาฟังก์ชันเดิม Tags ขอ 3–5 คำเป็น JSON array; ทั้งคู่ตั้ง 4096 output tokens เรียกโมเดลหลักจาก GEMINI_MODEL (default gemini-3.6-flash) เมื่อเจอ 500/502/503/504 หรือ timeout จะสลับไป GEMINI_FALLBACK_MODEL (default gemini-3.1-flash-lite) พร้อม backoff รวมไม่เกิน 3 attempts ครั้งละ 15 วินาที งบเวลารวม 48 วินาที ไม่ retry 400/401/403/404/429 Route maxDuration 60 วินาที และ reject คำตอบว่าง/ถูก block/ถูกตัดด้วย MAX_TOKENS
 
 ผล Enhance แสดงเทียบต้นฉบับก่อนผู้ใช้ยอมรับ Tags ต้องกดเลือกเพิ่มเอง โมเดลที่เลือกประกอบโพสต์ เช่น Midjourney v6 เป็น metadata ไม่ใช่การเปลี่ยน Gemini ที่ประมวลผลปุ่ม AI เมื่อ app limit ตอบ retryAfter UI มี countdown; provider quota error อาจไม่มีเวลาที่รอได้แน่นอน
 

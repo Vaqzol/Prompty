@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI, type EnhancedGenerateContentResponse } from '@google/generative-ai';
+import { GoogleGenerativeAI, type EnhancedGenerateContentResponse, type GenerateContentRequest } from '@google/generative-ai';
+import { setTimeout as delay } from 'node:timers/promises';
 
 // ─────────────────────────────────────────────
 // Gemini AI Client
@@ -7,9 +8,44 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Allow deployments to select their available Gemini model.
 const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const model = genAI.getGenerativeModel({ model: modelName });
-// Gemini 3 supports low thinking; keep other configured model families unchanged.
-const thinkingOptions = modelName.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: 'low' } } : {};
+const fallbackModelName = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.1-flash-lite';
+
+async function generateWithRecovery(request: GenerateContentRequest) {
+  // Leave time for authentication and response handling within the 60s route limit.
+  const deadline = Date.now() + 48000;
+  const models = [modelName, fallbackModelName, fallbackModelName];
+  for (let attempt = 0; attempt < models.length; attempt++) {
+    const selectedModel = models[attempt];
+    try {
+      return await genAI.getGenerativeModel({ model: selectedModel }).generateContent({
+        ...request,
+        generationConfig: {
+          ...request.generationConfig,
+          ...(selectedModel.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+        },
+      }, { timeout: Math.min(15000, Math.max(1, deadline - Date.now())) });
+    } catch (error) {
+      const status = (error as { status?: number })?.status;
+      const timedOut = (error as object)?.constructor?.name === 'GoogleGenerativeAIAbortError'
+        || /abort|timeout/i.test((error as { name?: string })?.name ?? '');
+      const transient = [500, 502, 503, 504].includes(status ?? 0)
+        || timedOut;
+      const waitMs = 500 * 2 ** attempt + Math.floor(Math.random() * 250);
+      if (!transient || attempt === models.length - 1 || Date.now() + waitMs >= deadline) {
+        if (timedOut) {
+          const timeoutError = new Error('AI_REQUEST_TIMEOUT');
+          timeoutError.name = 'TimeoutError';
+          throw timeoutError;
+        }
+        throw error;
+      }
+      // Never log provider messages, API keys, or user content.
+      console.warn('AI retry scheduled', { model: selectedModel, providerStatus: status, attempt: attempt + 1 });
+      await delay(waitMs);
+    }
+  }
+  throw new Error('AI_EMPTY_OUTPUT');
+}
 
 // ─────────────────────────────────────────────
 // 1. AI ปรับปรุง Prompt
@@ -29,14 +65,13 @@ Rules: Keep original intent. Add style, lighting, quality details. Output ONLY t
       : `You are a code reviewer. Improve the given code: add concise English comments, fix obvious issues, keep same functionality.
 Output ONLY the improved code. No markdown blocks. No explanation.`;
 
-  const result = await model.generateContent({
+  const result = await generateWithRecovery({
     contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nOriginal:\n${originalContent}` }] }],
     generationConfig: {
-      ...thinkingOptions,
       maxOutputTokens: 4096, // Leave room for reasoning as well as the final answer.
       temperature: 0.7,
     },
-  }, { timeout: 45000 });
+  });
 
   validateResponse(result.response);
   const text = result.response.text()?.trim();
@@ -61,15 +96,14 @@ export async function suggestTags(
       ? `Suggest 3-5 tags for this code. Focus on: language, framework, concept. Return ONLY a JSON array. Example: ["Python","FastAPI","Backend"]. No # symbol.`
       : `Suggest 3-5 tags for this AI prompt. Focus on: AI model, style, subject. Return ONLY a JSON array. Example: ["Midjourney","Cyberpunk","Neon"]. No # symbol.`;
 
-  const result = await model.generateContent({
+  const result = await generateWithRecovery({
     contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nTitle: ${title}\nContent: ${content}` }] }],
     generationConfig: {
-      ...thinkingOptions,
       maxOutputTokens: 4096, // 100 tokens can be exhausted before any tags are returned.
       responseMimeType: 'application/json',
       temperature: 0.3,
     },
-  }, { timeout: 45000 });
+  });
 
   validateResponse(result.response);
   const text = result.response.text()?.trim() ?? '';
