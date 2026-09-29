@@ -254,7 +254,7 @@ test('Gemini reserves enough output, returns valid tags, rejects truncated and b
  delete env.GEMINI_API_KEY;
 });
 
-test('Gemini recovers from provider outages for both AI features with bounded fallback attempts',async()=>{
+test('Gemini recovers from provider outages for both AI features with bounded retries on Flash Lite only',async()=>{
  env.GEMINI_API_KEY='test-key';
  try {
   for(const mode of ['tags','enhance']) {
@@ -268,7 +268,7 @@ test('Gemini recovers from provider outages for both AI features with bounded fa
    });
    const invoke=()=>mode==='tags'?gemini.suggestTags('React','React code','CODE'):gemini.enhancePrompt('A cat','PROMPT');
    await invoke();
-   assert.deepEqual(calls.map(c=>c.model),['gemini-3.6-flash','gemini-3.1-flash-lite']);
+   assert.deepEqual(calls.map(c=>c.model),['gemini-3.1-flash-lite','gemini-3.1-flash-lite']);
    assert.ok(calls.every(c=>c.options.timeout>0 && c.options.timeout<=15000));
    assert.equal(waits.length,1);assert.ok(waits[0]>=500 && waits[0]<750);
    failures=10;calls.length=0;waits.length=0;
@@ -280,13 +280,13 @@ test('Gemini recovers from provider outages for both AI features with bounded fa
 });
 
 test('Gemini recovers from SDK timeouts and reports exhausted timeouts safely',async()=>{
- env.GEMINI_API_KEY='test-key';env.GEMINI_FALLBACK_MODEL='gemini-3.1-flash-lite';
+ env.GEMINI_API_KEY='test-key';env.GEMINI_MODEL='old-model';env.GEMINI_FALLBACK_MODEL='old-fallback';
  class GoogleGenerativeAIAbortError extends Error {}
  let calls=0,failures=1;
  try {
   const gemini=load('src/lib/gemini.ts',{
    'node:timers/promises':{setTimeout:async()=>{}},
-   '@google/generative-ai':{GoogleGenerativeAI:class {getGenerativeModel(){return {generateContent:async()=>{
+   '@google/generative-ai':{GoogleGenerativeAI:class {getGenerativeModel({model}){assert.equal(model,'gemini-3.1-flash-lite');return {generateContent:async()=>{
     calls++;if(failures-->0)throw new GoogleGenerativeAIAbortError('private-provider-url');
     return {response:{candidates:[{finishReason:'STOP'}],text:()=>'Improved prompt'}};
    }};}}},
@@ -295,7 +295,7 @@ test('Gemini recovers from SDK timeouts and reports exhausted timeouts safely',a
   failures=10;calls=0;
   await assert.rejects(gemini.enhancePrompt('cat','PROMPT'),e=>e.name==='TimeoutError' && e.message==='AI_REQUEST_TIMEOUT');
   assert.equal(calls,3);
- } finally {delete env.GEMINI_API_KEY;delete env.GEMINI_FALLBACK_MODEL;}
+ } finally {delete env.GEMINI_API_KEY;delete env.GEMINI_MODEL;delete env.GEMINI_FALLBACK_MODEL;}
 });
 
 test('Gemini does not retry invalid requests, credentials or quota errors',async()=>{

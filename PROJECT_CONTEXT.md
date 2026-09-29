@@ -60,7 +60,7 @@ flowchart LR
 | Password/MFA | bcryptjs, otplib, QRCode, Node crypto |
 | Email | Nodemailer ผ่าน Gmail SMTP |
 | Images | Supabase Storage, buckets `avatars` และ `post-images` |
-| AI | `@google/generative-ai`; ชื่อโมเดลมาจาก `GEMINI_MODEL` หรือ fallback ในโค้ด |
+| AI | `@google/generative-ai`; ใช้ `gemini-3.1-flash-lite` ตัวเดียว |
 | Code display/editing | highlight.js และ react-simple-code-editor |
 | Admin chart | Recharts |
 | Tests | Node test runner, TypeScript transpilation ใน VM, mocks, PGlite |
@@ -258,13 +258,13 @@ UI หลักเป็นภาษาไทย ฟอนต์ Inter + IBM Ple
 
 Upload ตรวจ session/origin/rate/size และ magic bytes PNG/JPEG/GIF/WebP ให้ตรง MIME ก่อนอัปโหลดผ่าน service-role client ชื่อ object เป็น `userId/UUID.ext` คืน public URL ไม่พบการลบ object เดิมเมื่อเปลี่ยน/ลบภาพหรือโพสต์
 
-AI ตรวจ type, title ไม่เกิน 200 และ content ไม่เกิน 12,000 ตัวอักษร ใช้ session guard กับ rate limits ร่วมกัน ค่า model fallback ในโค้ดคือ `gemini-3.6-flash` ซึ่งเป็นค่าที่อ่านพบ ไม่ได้ยืนยันว่า provider/account ยังรองรับชื่อนี้จริง
+AI ตรวจ type, title ไม่เกิน 200 และ content ไม่เกิน 12,000 ตัวอักษร ใช้ session guard กับ rate limits ร่วมกัน ใช้โมเดล `gemini-3.1-flash-lite` ตัวเดียวสำหรับทั้งสองฟีเจอร์
 
-Enhance สำหรับ PROMPT สั่งเป็น prompt ภาษาอังกฤษสำหรับ image generators ไม่เกิน 80 คำ ส่วน CODE สั่งปรับ code/comment โดยรักษาฟังก์ชันเดิม Tags ขอ 3–5 คำเป็น JSON array; ทั้งคู่ตั้ง 4096 output tokens เรียกโมเดลหลักจาก GEMINI_MODEL (default gemini-3.6-flash) เมื่อเจอ 500/502/503/504 หรือ timeout จะสลับไป GEMINI_FALLBACK_MODEL (default gemini-3.1-flash-lite) พร้อม backoff รวมไม่เกิน 3 attempts ครั้งละ 15 วินาที งบเวลารวม 48 วินาที ไม่ retry 400/401/403/404/429 Route maxDuration 60 วินาที และ reject คำตอบว่าง/ถูก block/ถูกตัดด้วย MAX_TOKENS
+Enhance สำหรับ PROMPT สั่งเป็น prompt ภาษาอังกฤษสำหรับ image generators ไม่เกิน 80 คำ ส่วน CODE สั่งปรับ code/comment โดยรักษาฟังก์ชันเดิม Tags ขอ 3–5 คำเป็น JSON array; ทั้งคู่ตั้ง 4096 output tokens เรียก gemini-3.1-flash-lite โดยตรง เมื่อเจอ 500/502/503/504 หรือ timeout จะลองโมเดลเดิมซ้ำพร้อม backoff รวมไม่เกิน 3 attempts ครั้งละ 15 วินาที งบเวลารวม 48 วินาที ไม่ retry 400/401/403/404/429 Route maxDuration 60 วินาที และ reject คำตอบว่าง/ถูก block/ถูกตัดด้วย MAX_TOKENS
 
 ผล Enhance แสดงเทียบต้นฉบับก่อนผู้ใช้ยอมรับ Tags ต้องกดเลือกเพิ่มเอง โมเดลที่เลือกประกอบโพสต์ เช่น Midjourney v6 เป็น metadata ไม่ใช่การเปลี่ยน Gemini ที่ประมวลผลปุ่ม AI เมื่อ app limit ตอบ retryAfter UI มี countdown; provider quota error อาจไม่มีเวลาที่รอได้แน่นอน
 
-Environment ที่เกี่ยวข้อง (ระบุชื่อเท่านั้น): `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, `EMAIL_USER`, `EMAIL_PASS`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `GEMINI_MODEL`
+Environment ที่เกี่ยวข้อง (ระบุชื่อเท่านั้น): `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`, `NEXTAUTH_URL`, `EMAIL_USER`, `EMAIL_PASS`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`
 
 `src/lib/supabase.ts` มี anon client แต่ไม่พบ import ใช้งานใน src อื่น Upload runtime สร้าง service-role client เอง Config Next อนุญาต dev/tunnel origins และ Server Actions body limit 10 MB เอกสารนำเสนอพูดถึง GitHub/Vercel แต่รอบนี้ไม่ได้ตรวจ remote deployments หรือทดสอบ external connectivity
 

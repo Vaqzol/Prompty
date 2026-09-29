@@ -86,7 +86,7 @@ flowchart LR
 - PostgreSQL สำหรับ development พร้อม connection string
 - Supabase project และ Storage สำหรับรูปภาพ
 - บัญชี Gmail พร้อม App Password สำหรับส่ง OTP
-- Gemini API key และชื่อโมเดลที่บัญชีเข้าถึงได้ หากต้องการใช้ฟีเจอร์ AI
+- Gemini API key ที่เข้าถึง `gemini-3.1-flash-lite` ได้ หากต้องการใช้ฟีเจอร์ AI
 
 Clone repository ของคุณ แล้วเปิด terminal ในโฟลเดอร์ที่มี `package.json`:
 
@@ -118,8 +118,6 @@ SUPABASE_SERVICE_ROLE_KEY="<SERVER_ONLY_SERVICE_ROLE_KEY>"
 
 # AI — ตั้งค่าหากใช้ Enhance / Suggest Tags
 GEMINI_API_KEY="<GEMINI_API_KEY>"
-GEMINI_MODEL="<MODEL_AVAILABLE_TO_YOUR_ACCOUNT>"
-GEMINI_FALLBACK_MODEL="gemini-3.1-flash-lite"
 ```
 
 สร้างค่า `AUTH_SECRET` ด้วยคำสั่งนี้ แล้วนำผลไปใส่ใน `.env`:
@@ -138,7 +136,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 | `NEXT_PUBLIC_SUPABASE_URL` | URL ของ Supabase project |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | สำหรับ anon client ใน `src/lib/supabase.ts`; upload routes ปัจจุบันใช้ service-role client |
 | `SUPABASE_SERVICE_ROLE_KEY` | ใช้อัปโหลดฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามเปลี่ยนเป็นตัวแปร `NEXT_PUBLIC_*` |
-| `GEMINI_API_KEY`, `GEMINI_MODEL` | เชื่อม AI และเลือกโมเดลฝั่งเซิร์ฟเวอร์ |
+| `GEMINI_API_KEY` | เชื่อม AI ฝั่งเซิร์ฟเวอร์ด้วย `gemini-3.1-flash-lite` |
 
 `.env*` ถูก ignore โดย Git แล้ว อย่าใส่ credentials ลง README หรือ source code การเปลี่ยน `AUTH_SECRET` ของระบบที่มีผู้ใช้ MFA อยู่แล้วต้องวางแผนรองรับ เพราะมีผลต่อการถอดรหัส secret เดิมด้วย
 
@@ -246,7 +244,7 @@ Top Contributors cache 5 นาที และรายการแท็กร
 - AI Enhance สำหรับ PROMPT ถูกออกแบบให้ช่วยปรับคำสั่งสร้างภาพ ส่วน CODE ช่วยปรับโค้ดและ comments
 - ชื่อโมเดลในโพสต์เป็นข้อมูลประกอบ ไม่ได้เปลี่ยนโมเดล Gemini ที่ประมวลผลปุ่ม AI
 - ผู้ใช้ยังสร้างโพสต์ได้เมื่อไม่ใช้ AI; ฟีเจอร์ AI ขึ้นอยู่กับการตั้งค่า โควตา และความพร้อมของบริการ
-- หากโมเดลหลักตอบ 500/502/503/504 หรือหมดเวลารอ ระบบจะลองโมเดลสำรอง `GEMINI_FALLBACK_MODEL` (ค่าเริ่มต้น `gemini-3.1-flash-lite`) รวมสูงสุด 3 ครั้ง ครั้งละไม่เกิน 15 วินาที ภายในงบเวลา 48 วินาที ไม่ลองซ้ำเมื่อโควตาหมดหรือ API key ไม่ถูกต้อง โมเดลสำรองต้องเปิดให้บัญชีเข้าถึงด้วย
+- AI ทั้งสองฟีเจอร์ใช้ `gemini-3.1-flash-lite` ตัวเดียว หากตอบ 500/502/503/504 หรือหมดเวลารอ ระบบจะลองโมเดลเดิมซ้ำ รวมสูงสุด 3 ครั้ง ครั้งละไม่เกิน 15 วินาที ภายในงบเวลา 48 วินาที ไม่ลองซ้ำเมื่อโควตาหมดหรือ API key ไม่ถูกต้อง ค่า `GEMINI_MODEL` และ `GEMINI_FALLBACK_MODEL` เดิมไม่มีผลแล้ว
 - Bookmark หนึ่งโพสต์อยู่ได้หนึ่ง collection ต่อผู้ใช้; ลบ collection แล้ว bookmark ยังคงอยู่
 - Private collection เห็นได้เฉพาะเจ้าของ ส่วน public collection แชร์ลิงก์ได้
 - Notifications ดึงข้อมูลเป็นระยะทุก 60 วินาทีและเมื่อเปิด dropdown ไม่ได้ใช้ WebSocket

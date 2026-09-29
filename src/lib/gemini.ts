@@ -6,22 +6,20 @@ import { setTimeout as delay } from 'node:timers/promises';
 // ─────────────────────────────────────────────
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
-// Allow deployments to select their available Gemini model.
-const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const fallbackModelName = process.env.GEMINI_FALLBACK_MODEL?.trim() || 'gemini-3.1-flash-lite';
+// Use Flash Lite directly for both features, including retries.
+const modelName = 'gemini-3.1-flash-lite';
+const maxAttempts = 3;
 
 async function generateWithRecovery(request: GenerateContentRequest) {
   // Leave time for authentication and response handling within the 60s route limit.
   const deadline = Date.now() + 48000;
-  const models = [modelName, fallbackModelName, fallbackModelName];
-  for (let attempt = 0; attempt < models.length; attempt++) {
-    const selectedModel = models[attempt];
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      return await genAI.getGenerativeModel({ model: selectedModel }).generateContent({
+      return await genAI.getGenerativeModel({ model: modelName }).generateContent({
         ...request,
         generationConfig: {
           ...request.generationConfig,
-          ...(selectedModel.startsWith('gemini-3') ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+          ...{ thinkingConfig: { thinkingLevel: 'low' } },
         },
       }, { timeout: Math.min(15000, Math.max(1, deadline - Date.now())) });
     } catch (error) {
@@ -31,7 +29,7 @@ async function generateWithRecovery(request: GenerateContentRequest) {
       const transient = [500, 502, 503, 504].includes(status ?? 0)
         || timedOut;
       const waitMs = 500 * 2 ** attempt + Math.floor(Math.random() * 250);
-      if (!transient || attempt === models.length - 1 || Date.now() + waitMs >= deadline) {
+      if (!transient || attempt === maxAttempts - 1 || Date.now() + waitMs >= deadline) {
         if (timedOut) {
           const timeoutError = new Error('AI_REQUEST_TIMEOUT');
           timeoutError.name = 'TimeoutError';
@@ -40,7 +38,7 @@ async function generateWithRecovery(request: GenerateContentRequest) {
         throw error;
       }
       // Never log provider messages, API keys, or user content.
-      console.warn('AI retry scheduled', { model: selectedModel, providerStatus: status, attempt: attempt + 1 });
+      console.warn('AI retry scheduled', { model: modelName, providerStatus: status, attempt: attempt + 1 });
       await delay(waitMs);
     }
   }
